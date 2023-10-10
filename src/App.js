@@ -6,6 +6,7 @@ function App() {
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
+        <script type = "text/javascript" src="index.js">getData()</script>
         <p>
           Edit <code>src/App.js</code> and save to reload.
         </p>

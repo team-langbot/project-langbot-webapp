@@ -11,6 +11,7 @@ Amplify.configure(config)
 const getData = async () => {
   const data = await API.get('projectLangbotApi', '/text')
   console.log(data)
+  return data
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

@@ -1,0 +1,30 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-projectlangbotwebapp-dev-191209-authRole",
+      "UnauthRoleArn": "arn:aws:iam::571667364805:role/amplify-projectlangbotwebapp-dev-191209-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::571667364805:role/amplify-projectlangbotwebapp-dev-191209-authRole",
+      "Region": "us-west-2",
+      "DeploymentBucketName": "amplify-projectlangbotwebapp-dev-191209-deployment",
+      "UnauthRoleName": "amplify-projectlangbotwebapp-dev-191209-unauthRole",
+      "StackName": "amplify-projectlangbotwebapp-dev-191209",
+      "StackId": "arn:aws:cloudformation:us-west-2:571667364805:stack/amplify-projectlangbotwebapp-dev-191209/44151690-5cdb-11ee-b128-0a190c5acc9f",
+      "AmplifyAppId": "d35lx66sfa4ht4",
+      "APIGatewayAuthURL": "https://s3.amazonaws.com/amplify-projectlangbotwebapp-dev-191209-deployment/amplify-cfn-templates/api/APIGatewayAuthStack.json"
+    },
+    "categories": {
+      "function": {
+        "projectlangbotapi": {
+          "deploymentBucketName": "amplify-projectlangbotwebapp-dev-191209-deployment",
+          "s3Key": "amplify-builds/projectlangbotapi-756f4566444b58357245-build.zip"
+        }
+      },
+      "auth": {
+        "projectlangbotwebapp": {}
+      },
+      "api": {
+        "projectLangbotApi": {}
+      }
+    }
+  }
+}
