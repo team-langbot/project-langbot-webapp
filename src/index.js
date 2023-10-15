@@ -1,5 +1,5 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React from 'react'; // React
+import ReactDOM from 'react-dom/client'; // React library to talk to web broswers
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
