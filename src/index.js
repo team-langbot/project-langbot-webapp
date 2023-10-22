@@ -4,9 +4,9 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { Amplify, API } from 'aws-amplify'
-import config from './aws-exports'
+import awsconfig from './aws-exports'
 
-Amplify.configure(config)
+Amplify.configure(awsconfig)
 
 const getData = async () => {
   const data = await API.get('projectLangbotApi', '/text')
