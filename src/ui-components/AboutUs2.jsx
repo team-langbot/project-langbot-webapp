@@ -7,47 +7,33 @@
 /* eslint-disable */
 import * as React from "react";
 import { getOverrideProps } from "@aws-amplify/ui-react/internal";
-import Letstalkandhomerouter from "./Letstalkandhomerouter";
 import Conversationallyheader from "./Conversationallyheader";
 import Teammembers from "./Teammembers";
+import Letstalkandhomerouter from "./Letstalkandhomerouter";
 import { Flex } from "@aws-amplify/ui-react";
-export default function AboutUs(props) {
+export default function AboutUs2(props) {
   const { overrides, ...rest } = props;
   return (
     <Flex
-      gap="37px"
+      gap="16px"
       direction="column"
-      width="2157px"
-      height="1391px"
+      width="1440px"
+      height="1024px"
       justifyContent="flex-start"
-      alignItems="center"
+      alignItems="flex-start"
+      overflow="hidden"
       position="relative"
       padding="0px 0px 0px 0px"
       backgroundColor="rgba(245,233,227,1)"
-      {...getOverrideProps(overrides, "AboutUs")}
+      {...getOverrideProps(overrides, "AboutUs2")}
       {...rest}
     >
-      <Letstalkandhomerouter
-        display="flex"
-        gap="36px"
-        direction="row"
-        width="unset"
-        height="94px"
-        justifyContent="flex-end"
-        alignItems="flex-end"
-        shrink="0"
-        alignSelf="stretch"
-        position="relative"
-        padding="0px 30px 0px 30px"
-        backgroundColor="rgba(245,233,227,1)"
-        {...getOverrideProps(overrides, "let's talk and home router")}
-      ></Letstalkandhomerouter>
       <Conversationallyheader
         display="flex"
         gap="10px"
         direction="column"
         width="unset"
-        height="403px"
+        height="unset"
         justifyContent="center"
         alignItems="center"
         shrink="0"
@@ -60,7 +46,7 @@ export default function AboutUs(props) {
         display="flex"
         gap="10px"
         direction="row"
-        width="unset"
+        width="1440px"
         height="unset"
         justifyContent="flex-start"
         alignItems="flex-start"
@@ -71,6 +57,20 @@ export default function AboutUs(props) {
         backgroundColor="rgba(245,233,227,1)"
         {...getOverrideProps(overrides, "team members")}
       ></Teammembers>
+      <Letstalkandhomerouter
+        display="flex"
+        gap="36px"
+        direction="row"
+        width="unset"
+        height="unset"
+        justifyContent="flex-end"
+        alignItems="flex-start"
+        shrink="0"
+        position="relative"
+        padding="0px 20px 0px 20px"
+        backgroundColor="rgba(245,233,227,1)"
+        {...getOverrideProps(overrides, "let's talk and home router")}
+      ></Letstalkandhomerouter>
     </Flex>
   );
 }

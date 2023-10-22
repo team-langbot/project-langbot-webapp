@@ -7,47 +7,48 @@
 /* eslint-disable */
 import * as React from "react";
 import { getOverrideProps } from "@aws-amplify/ui-react/internal";
-import Letstalkandhomerouter from "./Letstalkandhomerouter";
+import Routerbutton from "./Routerbutton";
 import Conversationallyheader from "./Conversationallyheader";
-import Teammembers from "./Teammembers";
+import Lobbymainframe from "./Lobbymainframe";
+import Triangle from "./Triangle";
 import { Flex } from "@aws-amplify/ui-react";
-export default function AboutUs(props) {
+export default function Lessonlobbycontents(props) {
   const { overrides, ...rest } = props;
   return (
     <Flex
-      gap="37px"
+      gap="10px"
       direction="column"
-      width="2157px"
-      height="1391px"
-      justifyContent="flex-start"
+      width="unset"
+      height="1703px"
+      justifyContent="center"
       alignItems="center"
       position="relative"
-      padding="0px 0px 0px 0px"
+      padding="10px 10px 10px 10px"
       backgroundColor="rgba(245,233,227,1)"
-      {...getOverrideProps(overrides, "AboutUs")}
+      {...getOverrideProps(overrides, "Lessonlobbycontents")}
       {...rest}
     >
-      <Letstalkandhomerouter
+      <Routerbutton
         display="flex"
-        gap="36px"
+        gap="10px"
         direction="row"
         width="unset"
-        height="94px"
+        height="114px"
         justifyContent="flex-end"
-        alignItems="flex-end"
+        alignItems="flex-start"
         shrink="0"
         alignSelf="stretch"
         position="relative"
-        padding="0px 30px 0px 30px"
-        backgroundColor="rgba(245,233,227,1)"
-        {...getOverrideProps(overrides, "let's talk and home router")}
-      ></Letstalkandhomerouter>
+        padding="10px 10px 10px 10px"
+        backgroundColor="rgba(244,233,227,1)"
+        {...getOverrideProps(overrides, "router button")}
+      ></Routerbutton>
       <Conversationallyheader
         display="flex"
         gap="10px"
         direction="column"
         width="unset"
-        height="403px"
+        height="248px"
         justifyContent="center"
         alignItems="center"
         shrink="0"
@@ -56,9 +57,9 @@ export default function AboutUs(props) {
         padding="10px 10px 10px 10px"
         {...getOverrideProps(overrides, "conversationally header")}
       ></Conversationallyheader>
-      <Teammembers
+      <Lobbymainframe
         display="flex"
-        gap="10px"
+        gap="20px"
         direction="row"
         width="unset"
         height="unset"
@@ -67,10 +68,24 @@ export default function AboutUs(props) {
         overflow="hidden"
         shrink="0"
         position="relative"
-        padding="25px 54px 25px 54px"
+        padding="50px 30px 50px 30px"
         backgroundColor="rgba(245,233,227,1)"
-        {...getOverrideProps(overrides, "team members")}
-      ></Teammembers>
+        {...getOverrideProps(overrides, "lobby main frame")}
+      ></Lobbymainframe>
+      <Triangle
+        display="flex"
+        gap="10px"
+        direction="row"
+        width="unset"
+        height="573px"
+        justifyContent="space-between"
+        alignItems="center"
+        shrink="0"
+        alignSelf="stretch"
+        position="relative"
+        padding="10px 10px 10px 10px"
+        {...getOverrideProps(overrides, "triangle")}
+      ></Triangle>
     </Flex>
   );
 }

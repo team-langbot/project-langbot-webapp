@@ -6,18 +6,20 @@
 
 import * as React from "react";
 import { EscapeHatchProps } from "@aws-amplify/ui-react/internal";
-import { LetstalkandhomerouterProps } from "./Letstalkandhomerouter";
+import { RouterbuttonProps } from "./Routerbutton";
 import { ConversationallyheaderProps } from "./Conversationallyheader";
-import { TeammembersProps } from "./Teammembers";
+import { LobbymainframeProps } from "./Lobbymainframe";
+import { TriangleProps } from "./Triangle";
 import { FlexProps } from "@aws-amplify/ui-react";
 export declare type PrimitiveOverrideProps<T> = Partial<T> & React.DOMAttributes<HTMLDivElement>;
-export declare type AboutUsOverridesProps = {
-    AboutUs?: PrimitiveOverrideProps<FlexProps>;
-    "let's talk and home router"?: LetstalkandhomerouterProps;
+export declare type LessonlobbycontentsOverridesProps = {
+    Lessonlobbycontents?: PrimitiveOverrideProps<FlexProps>;
+    "router button"?: RouterbuttonProps;
     "conversationally header"?: ConversationallyheaderProps;
-    "team members"?: TeammembersProps;
+    "lobby main frame"?: LobbymainframeProps;
+    triangle?: TriangleProps;
 } & EscapeHatchProps;
-export declare type AboutUsProps = React.PropsWithChildren<Partial<FlexProps> & {
-    overrides?: AboutUsOverridesProps | undefined | null;
+export declare type LessonlobbycontentsProps = React.PropsWithChildren<Partial<FlexProps> & {
+    overrides?: LessonlobbycontentsOverridesProps | undefined | null;
 }>;
-export default function AboutUs(props: AboutUsProps): React.ReactElement;
+export default function Lessonlobbycontents(props: LessonlobbycontentsProps): React.ReactElement;

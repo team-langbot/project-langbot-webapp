@@ -1,8 +1,8 @@
 import './App.css';
 import {
-  LandingPage1, LessonLobby2, AboutUs
+  LandingPage, LessonLobby, AboutUs, Conversation1
  } from './ui-components';
- import { BrowserRouter, Routes, Route, Outlet, Link } from "react-router-dom";
+ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 
 function App() {
@@ -11,10 +11,16 @@ function App() {
       <BrowserRouter>
       <Routes>
           <Route path="/">
-          <Route index element={<LandingPage1 />} />
-          <Route path="about-us" element={<AboutUs />} />
-          <Route path="lobby" element={<LessonLobby2 />} />
-          <Route path="*" element={<NoPage />} />
+          // TODO get all of these looking good on the same size frame
+          <Route index element={<LandingPage display="flex"/>} />
+          // TODO get AboutUs looking good
+          <Route path="about-us" element={<AboutUs display="flex"/>} />
+          <Route path="lobby" element={<LessonLobby display="flex"/>} />
+          // TODO get this working
+          <Route path="conversation1" element={<Conversation1 display="flex"/>} />
+          // TODO add conversation2 path
+          <Route path="*" element={<NoPage display="flex"/>} />
+          // TODO add page for conversing and popup modal
         </Route>
       </Routes>
     </BrowserRouter>
@@ -23,31 +29,6 @@ function App() {
 }
 
 export default App;
-
-// TODO move layout and no page to another page -- create a pages directory
-// TODO remove layout if not necessary
-const RouterLayout = () => {
-  // TODO make this layout nice
-  return (
-    <>
-      <nav>
-        <ul>
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-          <li>
-            <Link to="/about-us">About Us</Link>
-          </li>
-          <li>
-            <Link to="/lobby">Lobby</Link>
-          </li>
-        </ul>
-      </nav>
-
-      <Outlet />
-    </>
-  )
-};
 
 const NoPage = () => {
   return <h1>404 Not Found</h1>;
