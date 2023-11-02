@@ -12,6 +12,7 @@ boto3 = "*"
 flask = "*"
 flask-cors = "*"
 flask-api = "*"
+werkzeug = "2.2.2"
 
 [requires]
 python_version = "3.8"
