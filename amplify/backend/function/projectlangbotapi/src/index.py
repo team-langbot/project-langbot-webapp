@@ -61,28 +61,35 @@ runtime = boto3.client('runtime.sagemaker')
 
 # Code reference:
 # https://aws.amazon.com/blogs/machine-learning/call-an-amazon-sagemaker-model-endpoint-using-amazon-api-gateway-and-aws-lambda/
-@app.route(TEXT_ROUTE, methods=['GET'])
+@app.route(TEXT_ROUTE, methods=['POST'])
 def get_text():
+    print("inside get_text")
+    
     # Parse request json and validate required arguments
     request_body = request.get_json()
     if not request_body:
+        print("empty request body")
         return "empty request body", status.HTTP_400_BAD_REQUEST
     
     conversation_id = request_body.get("conversationId")
     if not conversation_id or conversation_id not in (1, 2):
+        print("invalid conversation id")
         return "invalid conversation id", status.HTTP_400_BAD_REQUEST
     
     step_number = request_body.get("stepNumber")
     if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER):
+        print("invalid step number")
         return "invalid step number", status.HTTP_400_BAD_REQUEST
     
     attempt_number = request_body.get("attemptNumber")
     if not attempt_number or not 0 < attempt_number <= MAX_ANSWER_ATTEMPTS:
+        print("invalid attempt number")
         return "invalid attempt number", status.HTTP_400_BAD_REQUEST
     
     text = request_body.get("text")
     # TODO add text cleaning for SSNs, etc here. We should try to add something on front-end as well.
     if not text:
+        print("invalid text")
         return "invalid text", status.HTTP_400_BAD_REQUEST
     
     # Pass in text to context classification model to determine whether it is on topic
@@ -95,11 +102,14 @@ def get_text():
     
     content_classification_result = json.loads(content_classification_response['Body'].read().decode())
     if content_classification_result is None:
+        print("content classification model error")
         return "content classification model error", status.HTTP_500_INTERNAL_SERVER_ERROR
     on_topic = content_classification_result.get("onTopic")
     if on_topic is None:
+        print("content classification model error")
         return "content classification model error", status.HTTP_500_INTERNAL_SERVER_ERROR
     elif on_topic == False:
+        print("off topic")
         return createGetTextResponse(
             conversation_id,
             step_number, 
@@ -115,9 +125,11 @@ def get_text():
     
     gec_result = json.loads(gec_response['Body'].read().decode())
     if gec_result is None:
+        print("gec model error")
         return "gec model error", status.HTTP_500_INTERNAL_SERVER_ERROR
     annotated_text = gec_result.get("annotated_text") 
     if not annotated_text:
+        print("gec model error")
         return "gec model error", status.HTTP_500_INTERNAL_SERVER_ERROR
     
     # Pass in input to LLM with output from GEC model and original text to get a response
@@ -128,9 +140,11 @@ def get_text():
     
     llm_result = json.loads(llm_response['Body'].read().decode())
     if llm_result is None:
+        print("llm model error")
         return "llm model error", status.HTTP_500_INTERNAL_SERVER_ERROR
     llm_text = gec_result.get("response")
     if not llm_text:
+        print("llm model error")
         return "llm model error", status.HTTP_500_INTERNAL_SERVER_ERROR
 
     return createGetTextResponse(
