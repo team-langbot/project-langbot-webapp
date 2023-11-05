@@ -1,6 +1,7 @@
 from flask_cors import CORS
 from flask import Flask, request
 from flask_api import status
+import flask
 import awsgi, boto3, json
 from enum import Enum
 
@@ -69,90 +70,106 @@ def get_text():
     request_body = request.get_json()
     if not request_body:
         print("empty request body")
-        return "empty request body", status.HTTP_400_BAD_REQUEST
+        return flask.Response(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
     
     conversation_id = request_body.get("conversationId")
     if not conversation_id or conversation_id not in (1, 2):
         print("invalid conversation id")
-        return "invalid conversation id", status.HTTP_400_BAD_REQUEST
+        return flask.Response(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
     
     step_number = request_body.get("stepNumber")
     if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER):
         print("invalid step number")
-        return "invalid step number", status.HTTP_400_BAD_REQUEST
+        return flask.Response(response=createErrorResponse("invalid step number"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
     
     attempt_number = request_body.get("attemptNumber")
     if not attempt_number or not 0 < attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
-        return "invalid attempt number", status.HTTP_400_BAD_REQUEST
+        return flask.Response(response=createErrorResponse("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
     
     text = request_body.get("text")
     # TODO add text cleaning for SSNs, etc here. We should try to add something on front-end as well.
     if not text:
         print("invalid text")
-        return "invalid text", status.HTTP_400_BAD_REQUEST
-    
+        return flask.Response(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+
     # Pass in text to context classification model to determine whether it is on topic
     # invoke_endpoint documentation:
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
-    content_classification_response = runtime.invoke_endpoint(
-        EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
-        ContentType='application/json',
-        Body=createContentClassificationInput(conversation_id, step_number, text))
+    try:
+        content_classification_response = runtime.invoke_endpoint(
+            EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=createContentClassificationInput(conversation_id, step_number, text))
+    except Exception as err:
+        print(f"Unexpected error calling content classification - GEC: {err=}, {type(err)=}")
+        return flask.Response(response=createErrorResponse("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
     content_classification_result = json.loads(content_classification_response['Body'].read().decode())
     if content_classification_result is None:
         print("content classification model error")
-        return "content classification model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("content classification model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     on_topic = content_classification_result.get("onTopic")
     if on_topic is None:
         print("content classification model error")
-        return "content classification model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("content classification model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     elif on_topic == False:
         print("off topic")
-        return createGetTextResponse(
+        return flask.Response(response=createGetTextResponse(
             conversation_id,
             step_number, 
             attempt_number, 
             on_topic
-            ), status.HTTP_200_OK
+            ), status=status.HTTP_200_OK, mimetype='application/json')
     
     # Pass in input to GEC model to get text annotated with grammatical errors
-    gec_response = runtime.invoke_endpoint(
-        EndpointName=GEC_ENDPOINT_NAME,
-        ContentType='application/json',
-        Body=createGECInput(text))
-    
+    try:
+        gec_response = runtime.invoke_endpoint(
+            EndpointName=GEC_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=createGECInput(text))
+    except Exception as err:
+        print(f"Unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
+        return flask.Response(response=createErrorResponse("exception calling sagemaker - gec"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+        
     gec_result = json.loads(gec_response['Body'].read().decode())
     if gec_result is None:
         print("gec model error")
-        return "gec model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("gec model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     annotated_text = gec_result.get("annotated_text") 
     if not annotated_text:
         print("gec model error")
-        return "gec model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("empty request body"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
     # Pass in input to LLM with output from GEC model and original text to get a response
-    llm_response = runtime.invoke_endpoint(
-        EndpointName=LLM_ENDPOINT_NAME,
-        ContentType='application/json',
-        Body=createLLMInput(text, annotated_text))
+    try:
+        llm_response = runtime.invoke_endpoint(
+            EndpointName=LLM_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=createLLMInput(text, annotated_text))
+    except Exception as err:
+        print(f"Unexpected error calling content classification - LLM: {err=}, {type(err)=}")
+        return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
     
     llm_result = json.loads(llm_response['Body'].read().decode())
     if llm_result is None:
         print("llm model error")
-        return "llm model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+
     llm_text = gec_result.get("response")
     if not llm_text:
         print("llm model error")
-        return "llm model error", status.HTTP_500_INTERNAL_SERVER_ERROR
+        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
 
-    return createGetTextResponse(
+    return flask.Response(response=createGetTextResponse(
         conversation_id,
         step_number, 
         attempt_number, 
         on_topic,
-        llm_text), status.HTTP_200_OK
+        llm_text), status=status.HTTP_200_OK, mimetype='application/json')
+
+def createErrorResponse(text):
+    return json.dumps({'error': text})
 
 def createLLMInput(text, annotated_text):
     return json.dumps({'text': text, 'annotated_text': annotated_text})
