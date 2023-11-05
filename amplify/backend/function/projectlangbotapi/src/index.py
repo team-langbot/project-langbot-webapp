@@ -9,7 +9,7 @@ TEXT_ROUTE = "/text"
 
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "TODO"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
-LLM_ENDPOINT_NAME = "TODO"
+LLM_ENDPOINT_NAME = "huggingface-pytorch-tgi-inference-2023-11-05-23-05-40-414"
 
 MAX_CONVERSATION_STEP_NUMBER = 4 # Consider making this dynamic if extending to additional conversations.
 MAX_ANSWER_ATTEMPTS = 2
@@ -123,17 +123,17 @@ def get_text():
     #         ), status=status.HTTP_200_OK, mimetype='application/json')
     
     # Pass in input to GEC model to get text annotated with grammatical errors
-    try:
-        gec_response = runtime.invoke_endpoint(
-            EndpointName=GEC_ENDPOINT_NAME,
-            ContentType='application/json',
-            Body=createGECInput(text))
-    except Exception as err:
-        print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
-        return flask.Response(response=createErrorResponse("exception calling sagemaker - gec"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+    # try:
+    #     gec_response = runtime.invoke_endpoint(
+    #         EndpointName=GEC_ENDPOINT_NAME,
+    #         ContentType='application/json',
+    #         Body=createGECInput(text))
+    # except Exception as err:
+    #     print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
+    #     return flask.Response(response=createErrorResponse("exception calling sagemaker - gec"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
         
-    # TODO remove the below line after testing
-    return flask.Response(response=gec_response, status=status.HTTP_200_OK, mimetype='application/json')
+    # # TODO remove the below line after testing
+    # return flask.Response(response=gec_response, status=status.HTTP_200_OK, mimetype='application/json')
 
     # gec_result = json.loads(gec_response['Body'].read().decode())
     # if gec_result is None:
@@ -153,6 +153,32 @@ def get_text():
     # except Exception as err:
     #     print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
     #     return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
+    
+    try:
+        prompt = "You are a Spanish language teacher, and the user made mistakes. You respond with 'ahh, you mean,...' and repeat what the user said in the correct format. Don't further explain, and keep your response in one short sentence."
+        user_input = "\n\nUser:'Bien, gracias. ¿Y a tú?'"
+        prompt = prompt + user_input
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                #"max_new_tokens":64, 
+                "do_sample":True, 
+                "temperature":0.01, 
+                "top_k":50, 
+                "top_p":0.95
+            }
+        }
+
+        llm_response = runtime.invoke_endpoint(
+            EndpointName=LLM_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=payload)
+    except Exception as err:
+        print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
+        return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
+    
+    # TODO remove the below line after testing
+    return flask.Response(response=llm_response, status=status.HTTP_200_OK, mimetype='application/json')
     
     # llm_result = json.loads(llm_response['Body'].read().decode())
     # if llm_result is None:
