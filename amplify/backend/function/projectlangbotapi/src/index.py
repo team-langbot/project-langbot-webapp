@@ -155,40 +155,26 @@ def get_text():
     #     return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
     
     try:
-        prompt = "You are a Spanish language teacher, and the user made mistakes. You respond with 'ahh, you mean,...' and repeat what the user said in the correct format. Don't further explain, and keep your response in one short sentence."
-        user_input = "\n\nUser:'Bien, gracias. ¿Y a tú?'"
-        prompt = prompt + user_input
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                #"max_new_tokens":64, 
-                "do_sample":True, 
-                "temperature":0.01, 
-                "top_k":50, 
-                "top_p":0.95
-            }
-        }
-
         llm_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=json.dumps(payload))
+            Body=createLLMInput(text, "")) # TODO pass in annotated text here
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
         return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
     
+    llm_result = json.loads(llm_response['Body'].read().decode('utf-8'))
+    if llm_result is None:
+        print("llm model error - no response")
+        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+
+    llm_text = llm_result[0].get("generated_text")
+    if not llm_text:
+        print(f"llm model error - unexpected response format: {llm_result=}")
+        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+
     # TODO remove the below line after testing
     return flask.Response(response=llm_response, status=status.HTTP_200_OK, mimetype='application/json')
-    
-    # llm_result = json.loads(llm_response['Body'].read().decode())
-    # if llm_result is None:
-    #     print("llm model error - no response")
-    #     return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-
-    # llm_text = gec_result.get("response")
-    # if not llm_text:
-    #     print(f"llm model error - unexpected response format: {llm_result=}")
-    #     return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
 
     # return flask.Response(response=createGetTextResponse(
     #     conversation_id,
@@ -201,7 +187,20 @@ def createErrorResponse(text):
     return json.dumps({'error': text})
 
 def createLLMInput(text, annotated_text):
-    return json.dumps({'text': text, 'annotated_text': annotated_text})
+    # TODO modify to use inputs and update paramters
+    prompt = "You are a Spanish language teacher, and the user made mistakes. You respond with 'ahh, you mean,...' and repeat what the user said in the correct format. Don't further explain, and keep your response in one short sentence."
+    user_input = "\n\nUser:'Bien, gracias. ¿Y a tú?'"
+    prompt = prompt + user_input
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "do_sample":True, 
+            "temperature":0.01, 
+            "top_k":50, 
+            "top_p":0.95
+        }
+    }
+    return json.dumps(payload)
 
 def createGECInput(text):
     return json.dumps({'text': text})
