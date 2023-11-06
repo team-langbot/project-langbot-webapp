@@ -172,7 +172,7 @@ def get_text():
         llm_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=payload)
+            Body=json.dumps(payload))
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
         return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
