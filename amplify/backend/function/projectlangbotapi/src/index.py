@@ -174,7 +174,7 @@ def get_text():
         return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
 
     # TODO remove the below line after testing
-    return flask.Response(response=llm_response, status=status.HTTP_200_OK, mimetype='application/json')
+    return flask.Response(response=llm_text, status=status.HTTP_200_OK, mimetype='application/json')
 
     # return flask.Response(response=createGetTextResponse(
     #     conversation_id,
