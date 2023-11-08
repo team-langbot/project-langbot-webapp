@@ -4,6 +4,9 @@ from flask_api import status
 import flask
 import awsgi, boto3, json
 from enum import Enum
+import pandas as pd
+import chromadb
+from chromadb.utils import embedding_functions
 
 TEXT_ROUTE = "/text"
 
@@ -13,6 +16,8 @@ LLM_ENDPOINT_NAME = "huggingface-pytorch-tgi-inference-2023-11-05-23-05-40-414"
 
 MAX_CONVERSATION_STEP_NUMBER = 4 # Consider making this dynamic if extending to additional conversations.
 MAX_ANSWER_ATTEMPTS = 2
+
+TOPIC_DISTANCE_THRESHOLD = .5 # TODO need to update
 
 OFF_TOPIC_TEXT_RESPONSE = "Lo siento, ese no era el tema." # "Sorry, that wasn't on topic."
 TRY_AGAIN_RESPONSE = "Inténtalo de nuevo." # "Please try again."
@@ -42,6 +47,8 @@ CONVERSATION_SCRIPTS = {
 app = Flask(__name__)
 CORS(app)
 runtime = boto3.client('runtime.sagemaker')
+vectorDb = None
+
 
 # Request body:
 # {
@@ -93,6 +100,7 @@ def get_text():
         print("invalid text")
         return flask.Response(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
 
+    # TODO you might be able to remove this block if you can do on topic in the lambda
     # Pass in text to context classification model to determine whether it is on topic
     # invoke_endpoint documentation:
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
@@ -121,6 +129,16 @@ def get_text():
     #         attempt_number, 
     #         on_topic
     #         ), status=status.HTTP_200_OK, mimetype='application/json')
+    
+    on_topic = text_is_on_topic(text)
+    if not on_topic:
+        print("off topic")
+        return flask.Response(response=createGetTextResponse(
+            conversation_id,
+            step_number, 
+            attempt_number, 
+            on_topic
+            ), status=status.HTTP_200_OK, mimetype='application/json')
     
     # Pass in input to GEC model to get text annotated with grammatical errors
     # try:
@@ -183,6 +201,25 @@ def get_text():
     #     on_topic,
     #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
 
+def text_is_on_topic(text):
+    if not vectorDb:
+        vectorDb = create_chroma_db(
+            [
+                # TODO need to update this input
+                'My name Jess', 
+                'I am fine. Thank you. And you? ', 
+                'I from Pennsylvania. '
+             ], 
+            "conversationally")
+        
+    results = vectorDb.query(
+        query_texts=[text],
+        n_results=1
+    )
+    print(results)
+    similarity_score = results['distances'][0]
+    return similarity_score < TOPIC_DISTANCE_THRESHOLD
+    
 def createErrorResponse(text):
     return json.dumps({'error': text})
 
@@ -234,6 +271,19 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
         
     return json.dumps({'onTopic': on_topic, 'nextStep': next_step, 'text': text})
+
+def create_chroma_db(documents, name):
+    chroma_client = chromadb.Client()
+    # In-memory chroma with saving/loading to disk
+    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+    db = chroma_client.create_collection(name=name, embedding_function=sentence_transformer_ef)
+    for i,d in enumerate(documents):
+        db.add(
+            documents=d,
+            metadatas = {'aq_pair': d},
+            ids=str(i)
+        )
+    return db
     
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
