@@ -3,7 +3,7 @@ import {
   LandingPage, LessonLobby, AboutUs, Conversation1
  } from './ui-components';
  import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+ import { API } from 'aws-amplify';
 
 function App() {
   return (
@@ -31,5 +31,19 @@ function App() {
 export default App;
 
 const NoPage = () => {
+  const apiName = 'projectLangbotApi'; // replace this with your api name.
+  const path = '/text'; //replace this with the path you have configured on your API
+  const myInit = {
+    body: {"conversationId": 2, "stepNumber": 1, "attemptNumber": 1, "text": "hola"},
+    headers: {} // OPTIONAL
+  };
+  
+  API.post(apiName, path, myInit)
+    .then((response) => {
+      console.log(response)
+    })
+    .catch((error) => {
+      console.log(error);
+    });
   return <h1>404 Not Found</h1>;
 };
