@@ -77,6 +77,7 @@ def get_text():
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,X-Amz-Date,X-Amz-Security-Token,Authorization,X-Api-Key,X-Requested-With,Accept,Access-Control-Allow-Methods,Access-Control-Allow-Origin,Access-Control-Allow-Headers"
     response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
     return response
+
     
     # Parse request json and validate required arguments
     request_body = request.get_json()
