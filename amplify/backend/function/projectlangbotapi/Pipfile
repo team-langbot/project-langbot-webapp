@@ -13,7 +13,6 @@ flask = "*"
 flask-cors = "*"
 flask-api = "*"
 werkzeug = "2.2.2"
-chromadb = "*"
 
 [requires]
 python_version = "3.8"
