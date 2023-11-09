@@ -49,7 +49,6 @@ CORS(app)
 runtime = boto3.client('runtime.sagemaker')
 vectorDb = None
 
-
 # Request body:
 # {
 # 	“conversationId”: (int) 1, // Options for MVP are 1 or 2
@@ -72,6 +71,12 @@ vectorDb = None
 @app.route(TEXT_ROUTE, methods=['POST'])
 def get_text():
     print("inside get_text")
+    response = flask.Response(response=createErrorResponse("empty request body"), 
+                              status=status.HTTP_200_OK, 
+                              mimetype='application/json')
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,X-Amz-Date,X-Amz-Security-Token,Authorization,X-Api-Key,X-Requested-With,Accept,Access-Control-Allow-Methods,Access-Control-Allow-Origin,Access-Control-Allow-Headers"
+    response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
+    return response
     
     # Parse request json and validate required arguments
     request_body = request.get_json()
@@ -130,15 +135,16 @@ def get_text():
     #         on_topic
     #         ), status=status.HTTP_200_OK, mimetype='application/json')
     
-    on_topic = text_is_on_topic(text)
-    if not on_topic:
-        print("off topic")
-        return flask.Response(response=createGetTextResponse(
-            conversation_id,
-            step_number, 
-            attempt_number, 
-            on_topic
-            ), status=status.HTTP_200_OK, mimetype='application/json')
+    # on_topic = text_is_on_topic(text)
+    # if not on_topic:
+    #     print("off topic")
+    #     return flask.Response(
+    #         response=createGetTextResponse(
+    #         conversation_id,
+    #         step_number, 
+    #         attempt_number, 
+    #         on_topic
+    #         ), status=status.HTTP_200_OK, mimetype='application/json')
     
     # Pass in input to GEC model to get text annotated with grammatical errors
     # try:
