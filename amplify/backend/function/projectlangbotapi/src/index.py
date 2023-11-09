@@ -4,9 +4,6 @@ from flask_api import status
 import flask
 import awsgi, boto3, json
 from enum import Enum
-import pandas as pd
-import chromadb
-from chromadb.utils import embedding_functions
 
 TEXT_ROUTE = "/text"
 
@@ -45,7 +42,7 @@ CONVERSATION_SCRIPTS = {
 
 # Initialize Flask application and enable CORS
 app = Flask(__name__)
-CORS(app)
+CORS(app, send_wildcard=True)
 runtime = boto3.client('runtime.sagemaker')
 vectorDb = None
 
@@ -74,7 +71,8 @@ def get_text():
     response = flask.Response(response=createErrorResponse("empty request body"), 
                               status=status.HTTP_200_OK, 
                               mimetype='application/json')
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type,X-Amz-Date,X-Amz-Security-Token,Authorization,X-Api-Key,X-Requested-With,Accept,Access-Control-Allow-Methods,Access-Control-Allow-Origin,Access-Control-Allow-Headers"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
     return response
 
