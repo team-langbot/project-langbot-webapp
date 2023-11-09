@@ -68,41 +68,33 @@ vectorDb = None
 @app.route(TEXT_ROUTE, methods=['POST'])
 def get_text():
     print("inside get_text")
-    response = flask.Response(response=createErrorResponse("empty request body"), 
-                              status=status.HTTP_200_OK, 
-                              mimetype='application/json')
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
-    return response
-
     
     # Parse request json and validate required arguments
     request_body = request.get_json()
     if not request_body:
         print("empty request body")
-        return flask.Response(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST)
     
     conversation_id = request_body.get("conversationId")
     if not conversation_id or conversation_id not in (1, 2):
         print("invalid conversation id")
-        return flask.Response(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
     
     step_number = request_body.get("stepNumber")
     if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER):
         print("invalid step number")
-        return flask.Response(response=createErrorResponse("invalid step number"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
     
     attempt_number = request_body.get("attemptNumber")
     if not attempt_number or not 0 < attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
-        return flask.Response(response=createErrorResponse("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
     
     text = request_body.get("text")
     # TODO add text cleaning for SSNs, etc here. We should try to add something on front-end as well.
     if not text:
         print("invalid text")
-        return flask.Response(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST)
 
     # TODO you might be able to remove this block if you can do on topic in the lambda
     # Pass in text to context classification model to determine whether it is on topic
@@ -184,20 +176,20 @@ def get_text():
             Body=createLLMInput(text, "")) # TODO pass in annotated text here
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
-        return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
+        return create_flask_response_with_cors_headers(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
     
     llm_result = json.loads(llm_response['Body'].read().decode('utf-8'))
     if llm_result is None:
         print("llm model error - no response")
-        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     llm_text = llm_result[0].get("generated_text")
     if not llm_text:
         print(f"llm model error - unexpected response format: {llm_result=}")
-        return flask.Response(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+        return create_flask_response_with_cors_headers(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # TODO remove the below line after testing
-    return flask.Response(response=llm_text, status=status.HTTP_200_OK, mimetype='application/json')
+    return create_flask_response_with_cors_headers(response=llm_text, status=status.HTTP_200_OK)
 
     # return flask.Response(response=createGetTextResponse(
     #     conversation_id,
@@ -206,6 +198,15 @@ def get_text():
     #     on_topic,
     #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
 
+def create_flask_response_with_cors_headers(response, status):
+    response = flask.Response(response=response, 
+                              status=status, 
+                              mimetype='application/json')
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
+    return response
+    
 def text_is_on_topic(text):
     if not vectorDb:
         vectorDb = create_chroma_db(
