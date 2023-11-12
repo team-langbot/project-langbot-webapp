@@ -4,17 +4,18 @@ from flask_api import status
 import flask
 import awsgi, boto3, json
 from enum import Enum
+from torch import Tensor, nn
 
 TEXT_ROUTE = "/text"
 
-CONTENT_CLASSIFICATION_ENDPOINT_NAME = "TODO"
+CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
 
-MAX_CONVERSATION_STEP_NUMBER = 4 # Consider making this dynamic if extending to additional conversations.
+MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
 
-TOPIC_DISTANCE_THRESHOLD = .5 # TODO need to update
+CC_CUTOFF_THRESHOLD = 0.75
 
 OFF_TOPIC_TEXT_RESPONSE = "Lo siento, ese no era el tema." # "Sorry, that wasn't on topic."
 TRY_AGAIN_RESPONSE = "Inténtalo de nuevo." # "Please try again."
@@ -26,25 +27,18 @@ class NextStep(Enum):
 
 CONVERSATION_SCRIPTS = {
     1: {
-        # TODO update script 1 so that it doesn't use any input from the user
-        1: '¡Buenos días! Me llamo Thomas. ¿Y tú?',
-        2: '¡Encantada de conocerte! ¿Cómo te va?',
-        3: 'Vivo en la Ciudad de México. ¿De dónde eres tú?',
-        4: 'Ah, eres de Pennsylvania. Es un estado precioso.'
-    },
-    2: {
-        1: '¡Buenos días! Bienvenido/a a Brew Haven. Solo tenemos café hoy. ¿Te gusta café?',
-        2: '¿Te gusta llevar dos cafés con un 50% de descuento en el segundo?',
-        3: 'Aquí tienes tus dos cafés. Tu total es de 50 pesos. ¿Vas a usar tarjeta de crédito?',
-        4: 'Gracias. Hasta pronto.'
-    },
+        1: 'Hola, ¿cómo estás?',
+        2: '¿Estás libre hoy?',
+        3: '¿Quieres ir de compras conmigo?',
+        4: '¿A qué hora te gustaría ir?',
+        5: 'Vale, nos vemos luego.'
+    }
 }
 
 # Initialize Flask application and enable CORS
 app = Flask(__name__)
 CORS(app, send_wildcard=True)
 runtime = boto3.client('runtime.sagemaker')
-vectorDb = None
 
 # Request body:
 # {
@@ -58,7 +52,7 @@ vectorDb = None
 # Response Body: 
 # {
 # 	“onTopic”: (bool) true/false, // Used to increment the attempt number on the front-end
-# 	“nextStep”: (int) 1, // Can be 1 - 3, 1 = move to next conversation pair, 2 = prompt for errors, 3 = end conversation
+# 	“nextAction”: (int) 1, // Can be 1 - 3, 1 = move to next conversation pair, 2 = prompt for errors, 3 = end conversation
 # 	“text”: (string) “Bueno! Que te gusta leer?” // This could either come back from the LLM, if the context was good, or could be one of a few hard-coded responses prompting for a new input from the user. We can store these responses in code right now, an optimization as we expand to different languages would be to store these in a database.
 # // errors: list of errors to show user – attempt 1, high level error, attempt 2, more information
 # }
@@ -96,46 +90,34 @@ def get_text():
         print("invalid text")
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST)
 
-    # TODO you might be able to remove this block if you can do on topic in the lambda
     # Pass in text to context classification model to determine whether it is on topic
     # invoke_endpoint documentation:
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
-    # try:
-    #     content_classification_response = runtime.invoke_endpoint(
-    #         EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
-    #         ContentType='application/json',
-    #         Body=createContentClassificationInput(conversation_id, step_number, text))
-    # except Exception as err:
-    #     print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
-    #     return flask.Response(response=createErrorResponse("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+    try:
+        cc_question_response = runtime.invoke_endpoint(
+            EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=createContentClassificationInput(CONVERSATION_SCRIPTS[1][conversation_id]))
+        cc_question_embedding = json.loads(cc_question_response['Body'].read().decode())
+                
+        cc_user_answer_response = runtime.invoke_endpoint(
+            EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=createContentClassificationInput(text))
+        cc_user_answer_embedding = json.loads(cc_user_answer_response['Body'].read().decode())
+    except Exception as err:
+        print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
+        return flask.Response(response=createErrorResponse("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
-    # content_classification_result = json.loads(content_classification_response['Body'].read().decode())
-    # if content_classification_result is None:
-    #     print("content classification model error - no response")
-    #     return flask.Response(response=createErrorResponse("content classification model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-    # on_topic = content_classification_result.get("onTopic")
-    # if on_topic is None:
-    #     print(f"content classification model error - unexpected response format: {content_classification_result=}")
-    #     return flask.Response(response=createErrorResponse("content classification model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-    # elif on_topic == False:
-    #     print("off topic")
-    #     return flask.Response(response=createGetTextResponse(
-    #         conversation_id,
-    #         step_number, 
-    #         attempt_number, 
-    #         on_topic
-    #         ), status=status.HTTP_200_OK, mimetype='application/json')
-    
-    # on_topic = text_is_on_topic(text)
-    # if not on_topic:
-    #     print("off topic")
-    #     return flask.Response(
-    #         response=createGetTextResponse(
-    #         conversation_id,
-    #         step_number, 
-    #         attempt_number, 
-    #         on_topic
-    #         ), status=status.HTTP_200_OK, mimetype='application/json')
+    on_topic = text_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
+    if on_topic == False:
+        print("off topic")
+        return flask.Response(response=createGetTextResponse(
+            conversation_id,
+            step_number, 
+            attempt_number, 
+            on_topic
+            ), status=status.HTTP_200_OK, mimetype='application/json')
     
     # Pass in input to GEC model to get text annotated with grammatical errors
     # try:
@@ -173,7 +155,7 @@ def get_text():
         llm_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=createLLMInput(text, "")) # TODO pass in annotated text here
+            Body=createLLMInput(text, "")) # TODO pass in annotated text here once GEC is working
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
         return create_flask_response_with_cors_headers(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
@@ -197,6 +179,15 @@ def get_text():
     #     attempt_number, 
     #     on_topic,
     #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
+    
+def text_is_on_topic(question_embedding, user_answer_embedding):
+    # Calculating the cos similarity between question and answer
+    cos = nn.CosineSimilarity(dim=0, eps=1e-08)
+    similarity_score = cos(Tensor(question_embedding[0][0]), Tensor(user_answer_embedding[0][0]))
+    # Set the cutoff threshold
+    if similarity_score > CC_CUTOFF_THRESHOLD:
+        return True
+    return False
 
 def create_flask_response_with_cors_headers(response, status):
     response = flask.Response(response=response, 
@@ -206,25 +197,6 @@ def create_flask_response_with_cors_headers(response, status):
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
     return response
-    
-# def text_is_on_topic(text):
-#     if not vectorDb:
-#         vectorDb = create_chroma_db(
-#             [
-#                 # TODO need to update this input
-#                 'My name Jess', 
-#                 'I am fine. Thank you. And you? ', 
-#                 'I from Pennsylvania. '
-#              ], 
-#             "conversationally")
-        
-#     results = vectorDb.query(
-#         query_texts=[text],
-#         n_results=1
-#     )
-#     print(results)
-#     similarity_score = results['distances'][0]
-#     return similarity_score < TOPIC_DISTANCE_THRESHOLD
     
 def createErrorResponse(text):
     return json.dumps({'error': text})
@@ -248,8 +220,8 @@ def createLLMInput(text, annotated_text):
 def createGECInput(text):
     return json.dumps({'text': text})
 
-def createContentClassificationInput(conversation_id, step_number, text):
-    return json.dumps({'prompt': CONVERSATION_SCRIPTS[conversation_id][step_number], 'response': text})
+def createContentClassificationInput(text):
+    return json.dumps({'inputs': text})
 
 def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic, llm_text=None):
     next_step, text = None, None
@@ -277,19 +249,6 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
         
     return json.dumps({'onTopic': on_topic, 'nextStep': next_step, 'text': text})
-
-# def create_chroma_db(documents, name):
-#     chroma_client = chromadb.Client()
-#     # In-memory chroma with saving/loading to disk
-#     sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-#     db = chroma_client.create_collection(name=name, embedding_function=sentence_transformer_ef)
-#     for i,d in enumerate(documents):
-#         db.add(
-#             documents=d,
-#             metadatas = {'aq_pair': d},
-#             ids=str(i)
-#         )
-#     return db
     
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
