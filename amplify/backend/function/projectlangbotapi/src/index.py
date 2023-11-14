@@ -252,7 +252,7 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
             text = llm_text + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
-    response_body = json.dumps({'onTopic': on_topic, 'nextStep': next_step, 'text': text}) 
+    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
     print("response body: " + response_body)
     return response_body
     
