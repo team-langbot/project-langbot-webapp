@@ -190,7 +190,7 @@ def text_is_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cosine similarity between question and answer
     similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
     print("similarity score: " + str(similarity_score))
-    return similarity_score > CC_CUTOFF_THRESHOLD
+    return bool(similarity_score > CC_CUTOFF_THRESHOLD)
 
 def create_flask_response_with_cors_headers(response, status):
     response = flask.Response(response=response, 
