@@ -232,7 +232,7 @@ def create_error_response(text):
 def parse_llm_response(response):
     response_body = json.loads(response['Body'].read().decode('utf-8'))
     generated_text = response_body[0]["generated_text"]
-    print("response from llm: " + generated_text)
+    print("response from llm: " + repr(generated_text))
     response = re.search(LLM_RESPONSE_REGEX, generated_text)
     if response is None:
         print("could not parse llm response")
