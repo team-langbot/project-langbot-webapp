@@ -172,7 +172,12 @@ def get_text():
                 Body=input)
             llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
             
-        input = create_llm_reword_next_question_prompt(conversation_id=conversation_id, step_number=step_number)
+        input = create_llm_input(
+            create_llm_reword_next_question_prompt(
+                conversation_id=conversation_id, 
+                step_number=step_number
+            )
+        )
         print("calling llm endpoint with the following reword next question input: " + input)
         llm_next_question_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
@@ -196,7 +201,7 @@ def get_text():
         return create_flask_response_with_cors_headers(response=create_error_response("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
     
     return flask.Response(response=create_get_text_response(
-        conversation_id=1,
+        conversation_id=conversation_id,
         step_number=step_number, 
         attempt_number=attempt_number, 
         on_topic=True,
