@@ -54,7 +54,6 @@ runtime = boto3.client('runtime.sagemaker')
 # 	“onTopic”: (bool) true/false, // Used to increment the attempt number on the front-end
 # 	“nextAction”: (int) 1, // Can be 1 - 3, 1 = move to next conversation pair, 2 = prompt for errors, 3 = end conversation
 # 	“text”: (string) “Bueno! Que te gusta leer?” // This could either come back from the LLM, if the context was good, or could be one of a few hard-coded responses prompting for a new input from the user. We can store these responses in code right now, an optimization as we expand to different languages would be to store these in a database.
-# // errors: list of errors to show user – attempt 1, high level error, attempt 2, more information
 # }
 
 # Code reference:
@@ -70,7 +69,7 @@ def get_text():
         return create_flask_response_with_cors_headers(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST)
     
     conversation_id = request_body.get("conversationId")
-    if not conversation_id or conversation_id not in (1, 2):
+    if not conversation_id or conversation_id not in (1):
         print("invalid conversation id")
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
     
@@ -94,12 +93,16 @@ def get_text():
     # invoke_endpoint documentation:
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
     try:
+        input = createContentClassificationInput(CONVERSATION_SCRIPTS[1][step_number])
+        print("calling cc endpoint with the following question input: " + str(input))
         cc_question_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=createContentClassificationInput(CONVERSATION_SCRIPTS[1][conversation_id]))
+            Body=input)
         cc_question_embedding = json.loads(cc_question_response['Body'].read().decode())
-                
+        
+        input = createContentClassificationInput(text)
+        print("calling cc endpoint with the following user answer input: " + str(input))
         cc_user_answer_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
@@ -110,7 +113,7 @@ def get_text():
         return flask.Response(response=createErrorResponse("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
     on_topic = text_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
-    if on_topic == False:
+    if not on_topic:
         print("off topic")
         return flask.Response(response=createGetTextResponse(
             conversation_id,
@@ -181,8 +184,9 @@ def get_text():
     #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
   
 def text_is_on_topic(question_embedding, user_answer_embedding):
-    # Calculating the cos similarity between question and answer
+    # Calculating the cosine similarity between question and answer
     similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
+    print("similarity score: " + str(similarity_score))
     return similarity_score > CC_CUTOFF_THRESHOLD
 
 def create_flask_response_with_cors_headers(response, status):
