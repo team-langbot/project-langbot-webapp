@@ -227,7 +227,7 @@ def parse_llm_response(response):
     generated_text = response_body[0]["generated_text"]
     print("response from llm: " + generated_text)
     response = re.search(LLM_RESPONSE_REGEX, generated_text)
-    return response.group(1)
+    return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Response with 'Veo. quieres decir " + gec_input + "' and nothing else:"
