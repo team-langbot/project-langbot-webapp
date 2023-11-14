@@ -153,6 +153,8 @@ def get_text():
     #     return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
     
     try:
+        llm_gec_response_text, llm_gec_scaffolding_response_text, llm_next_question_response_text = None, None, None
+        
         input = create_llm_input(create_llm_gec_prompt(text))
         print("calling llm endpoint with the following gec input: " + input)
         llm_gec_response = runtime.invoke_endpoint(
@@ -193,8 +195,8 @@ def get_text():
             # Default to the next question if we're not getting usable text from the model at all
             llm_text = CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
         else:
-            # Otherwise, we have model errors and we're at the end of the conversation, and
-            # the text doesn't matter anyways since it won't be displayed, so we default to empty string.
+            # Otherwise, we have model errors and we're at the end of the conversation.
+            # The text won't be displayed anyways so we default to empty string.
             llm_text = ""
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
@@ -232,6 +234,8 @@ def parse_llm_response(response):
     generated_text = response_body[0]["generated_text"]
     print("response from llm: " + generated_text)
     response = re.search(LLM_RESPONSE_REGEX, generated_text)
+    if response is None:
+        print("could not parse llm response")
     return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
