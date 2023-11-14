@@ -74,12 +74,12 @@ def get_text():
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
     
     step_number = request_body.get("stepNumber")
-    if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER):
+    if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER + 1):
         print("invalid step number")
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
     
     attempt_number = request_body.get("attemptNumber")
-    if not attempt_number or not 0 < attempt_number <= MAX_ANSWER_ATTEMPTS:
+    if not attempt_number or not 1 < attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
     
@@ -231,18 +231,18 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
     next_step, text = None, None
         
     if on_topic == False:
-        if attempt_number < 2:
+        if attempt_number < MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
             # TODO proper string concatenation
             # TODO should this error text be in Spanish?
             # TODO initial how-to can also tell user what phrases we will be using for correction like below
-            text = OFF_TOPIC_TEXT_RESPONSE + TRY_AGAIN_RESPONSE
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + TRY_AGAIN_RESPONSE
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = OFF_TOPIC_TEXT_RESPONSE
             next_step = NextStep.END_CONVERSATION
         else:
-            text = OFF_TOPIC_TEXT_RESPONSE + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
