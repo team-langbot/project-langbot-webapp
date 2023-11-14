@@ -69,7 +69,7 @@ def get_text():
         return create_flask_response_with_cors_headers(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST)
     
     conversation_id = request_body.get("conversationId")
-    if not conversation_id or conversation_id not in (1):
+    if not conversation_id or conversation_id != 1: # Only supporting one conversation for now
         print("invalid conversation id")
         return create_flask_response_with_cors_headers(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
     
@@ -94,7 +94,7 @@ def get_text():
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
     try:
         input = createContentClassificationInput(CONVERSATION_SCRIPTS[1][step_number])
-        print("calling cc endpoint with the following question input: " + str(input))
+        print("calling cc endpoint with the following question input: " + input)
         cc_question_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
@@ -102,7 +102,7 @@ def get_text():
         cc_question_embedding = json.loads(cc_question_response['Body'].read().decode())
         
         input = createContentClassificationInput(text)
-        print("calling cc endpoint with the following user answer input: " + str(input))
+        print("calling cc endpoint with the following user answer input: " + input)
         cc_user_answer_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
@@ -115,12 +115,15 @@ def get_text():
     on_topic = text_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
     if not on_topic:
         print("off topic")
-        return flask.Response(response=createGetTextResponse(
-            conversation_id,
-            step_number, 
-            attempt_number, 
-            on_topic
-            ), status=status.HTTP_200_OK, mimetype='application/json')
+        return create_flask_response_with_cors_headers(
+            response=createGetTextResponse(
+                conversation_id=1,
+                step_number=step_number, 
+                attempt_number=attempt_number, 
+                on_topic=False
+            ), 
+            status=status.HTTP_200_OK)
+
     
     # Pass in input to GEC model to get text annotated with grammatical errors
     # try:
@@ -224,6 +227,7 @@ def createContentClassificationInput(text):
     return json.dumps({'inputs': text})
 
 def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic, llm_text=None):
+    print("creating response body")
     next_step, text = None, None
         
     if on_topic == False:
@@ -247,8 +251,10 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
         else:
             text = llm_text + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
-        
-    return json.dumps({'onTopic': on_topic, 'nextStep': next_step, 'text': text})
+       
+    response_body = json.dumps({'onTopic': on_topic, 'nextStep': next_step, 'text': text}) 
+    print("response body: " + response_body)
+    return response_body
     
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
