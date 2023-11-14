@@ -174,18 +174,19 @@ def get_text():
                 Body=input)
             llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
             
-        input = create_llm_input(
-            create_llm_reword_next_question_prompt(
-                conversation_id=conversation_id, 
-                step_number=step_number
+        if step_number != MAX_CONVERSATION_STEP_NUMBER:
+            input = create_llm_input(
+                create_llm_reword_next_question_prompt(
+                    conversation_id=conversation_id, 
+                    step_number=step_number + 1
+                )
             )
-        )
-        print("calling llm endpoint with the following reword next question input: " + input)
-        llm_next_question_response = runtime.invoke_endpoint(
-            EndpointName=LLM_ENDPOINT_NAME,
-            ContentType='application/json',
-            Body=input)
-        llm_next_question_response_text = parse_llm_response(llm_next_question_response)
+            print("calling llm endpoint with the following reword next question input: " + input)
+            llm_next_question_response = runtime.invoke_endpoint(
+                EndpointName=LLM_ENDPOINT_NAME,
+                ContentType='application/json',
+                Body=input)
+            llm_next_question_response_text = parse_llm_response(llm_next_question_response)
             
         if llm_gec_scaffolding_response_text is not None and llm_next_question_response_text is not None:
             llm_text = llm_gec_scaffolding_response_text + " " + llm_next_question_response_text
