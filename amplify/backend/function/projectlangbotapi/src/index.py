@@ -4,7 +4,7 @@ from flask_api import status
 import flask
 import awsgi, boto3, json
 from enum import Enum
-from torch import Tensor, nn
+from scipy.spatial import distance
 
 TEXT_ROUTE = "/text"
 
@@ -179,15 +179,11 @@ def get_text():
     #     attempt_number, 
     #     on_topic,
     #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
-    
+  
 def text_is_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cos similarity between question and answer
-    cos = nn.CosineSimilarity(dim=0, eps=1e-08)
-    similarity_score = cos(Tensor(question_embedding[0][0]), Tensor(user_answer_embedding[0][0]))
-    # Set the cutoff threshold
-    if similarity_score > CC_CUTOFF_THRESHOLD:
-        return True
-    return False
+    similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
+    return similarity_score > CC_CUTOFF_THRESHOLD
 
 def create_flask_response_with_cors_headers(response, status):
     response = flask.Response(response=response, 
