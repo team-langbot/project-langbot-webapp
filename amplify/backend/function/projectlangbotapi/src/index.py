@@ -5,26 +5,17 @@ import flask
 import awsgi, boto3, json
 from enum import Enum
 from scipy.spatial import distance
-
-TEXT_ROUTE = "/text"
+import re
 
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
-
-MAX_CONVERSATION_STEP_NUMBER = 5
-MAX_ANSWER_ATTEMPTS = 2
-
-CC_CUTOFF_THRESHOLD = 0.75
-
+LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
 OFF_TOPIC_TEXT_RESPONSE = "Lo siento, ese no era el tema." # "Sorry, that wasn't on topic."
 TRY_AGAIN_RESPONSE = "Inténtalo de nuevo." # "Please try again."
-
-class NextStep(Enum):
-    MOVE_TO_NEXT_CONVERSATION_PAIR = 1
-    PROMPT_FOR_ANOTHER_ATTEMPT = 2
-    END_CONVERSATION = 3
-
+MAX_CONVERSATION_STEP_NUMBER = 5
+MAX_ANSWER_ATTEMPTS = 2
+CC_CUTOFF_THRESHOLD = 0.75
 CONVERSATION_SCRIPTS = {
     1: {
         1: 'Hola, ¿cómo estás?',
@@ -34,6 +25,11 @@ CONVERSATION_SCRIPTS = {
         5: 'Vale, nos vemos luego.'
     }
 }
+
+class NextStep(Enum):
+    MOVE_TO_NEXT_CONVERSATION_PAIR = 1
+    PROMPT_FOR_ANOTHER_ATTEMPT = 2
+    END_CONVERSATION = 3
 
 # Initialize Flask application and enable CORS
 app = Flask(__name__)
@@ -58,7 +54,7 @@ runtime = boto3.client('runtime.sagemaker')
 
 # Code reference:
 # https://aws.amazon.com/blogs/machine-learning/call-an-amazon-sagemaker-model-endpoint-using-amazon-api-gateway-and-aws-lambda/
-@app.route(TEXT_ROUTE, methods=['POST'])
+@app.route("/text", methods=['POST'])
 def get_text():
     print("inside get_text")
     
@@ -66,34 +62,34 @@ def get_text():
     request_body = request.get_json()
     if not request_body:
         print("empty request body")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("empty request body"), status=status.HTTP_400_BAD_REQUEST)
+        return create_flask_response_with_cors_headers(response=create_error_response("empty request body"), status=status.HTTP_400_BAD_REQUEST)
     
     conversation_id = request_body.get("conversationId")
     if not conversation_id or conversation_id != 1: # Only supporting one conversation for now
         print("invalid conversation id")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
+        return create_flask_response_with_cors_headers(response=create_error_response("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
     
     step_number = request_body.get("stepNumber")
     if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER + 1):
         print("invalid step number")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
+        return create_flask_response_with_cors_headers(response=create_error_response("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
     
     attempt_number = request_body.get("attemptNumber")
     if not attempt_number or not 1 < attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
+        return create_flask_response_with_cors_headers(response=create_error_response("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
     
     text = request_body.get("text")
     # TODO add text cleaning for SSNs, etc here. We should try to add something on front-end as well.
     if not text:
         print("invalid text")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("invalid text"), status=status.HTTP_400_BAD_REQUEST)
+        return create_flask_response_with_cors_headers(response=create_error_response("invalid text"), status=status.HTTP_400_BAD_REQUEST)
 
     # Pass in text to context classification model to determine whether it is on topic
     # invoke_endpoint documentation:
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
     try:
-        input = createContentClassificationInput(CONVERSATION_SCRIPTS[1][step_number])
+        input = create_cc_input(CONVERSATION_SCRIPTS[conversation_id][step_number])
         print("calling cc endpoint with the following question input: " + input)
         cc_question_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
@@ -101,29 +97,28 @@ def get_text():
             Body=input)
         cc_question_embedding = json.loads(cc_question_response['Body'].read().decode())
         
-        input = createContentClassificationInput(text)
+        input = create_cc_input(text)
         print("calling cc endpoint with the following user answer input: " + input)
         cc_user_answer_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=createContentClassificationInput(text))
+            Body=create_cc_input(text))
         cc_user_answer_embedding = json.loads(cc_user_answer_response['Body'].read().decode())
     except Exception as err:
         print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
-        return flask.Response(response=createErrorResponse("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
+        return flask.Response(response=create_error_response("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
-    on_topic = text_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
+    on_topic = user_input_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
     if not on_topic:
         print("off topic")
         return create_flask_response_with_cors_headers(
-            response=createGetTextResponse(
+            response=create_get_text_response(
                 conversation_id=1,
                 step_number=step_number, 
                 attempt_number=attempt_number, 
                 on_topic=False
             ), 
             status=status.HTTP_200_OK)
-
     
     # Pass in input to GEC model to get text annotated with grammatical errors
     # try:
@@ -158,35 +153,58 @@ def get_text():
     #     return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
     
     try:
-        llm_response = runtime.invoke_endpoint(
+        input = create_llm_input(create_llm_gec_prompt(text))
+        print("calling llm endpoint with the following gec input: " + input)
+        llm_gec_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=createLLMInput(text, "")) # TODO pass in annotated text here once GEC is working
+            Body=input)
+        llm_gec_response_text = parse_llm_response(llm_gec_response)
+        
+        if llm_gec_response_text is None:
+            print("llm response could not be parsed, skipping scaffolding") 
+        else:
+            input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
+            print("calling llm endpoint with the following gec scaffolding input: " + input)
+            llm_gec_scaffolding_response = runtime.invoke_endpoint(
+                EndpointName=LLM_ENDPOINT_NAME,
+                ContentType='application/json',
+                Body=input)
+            llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
+            
+        input = create_llm_reword_next_question_prompt(conversation_id=conversation_id, step_number=step_number)
+        print("calling llm endpoint with the following reword next question input: " + input)
+        llm_next_question_response = runtime.invoke_endpoint(
+            EndpointName=LLM_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=input)
+        llm_next_question_response_text = parse_llm_response(llm_next_question_response)
+            
+        if llm_gec_scaffolding_response_text is not None and llm_next_question_response_text is not None:
+            llm_text = llm_gec_scaffolding_response_text + " " + llm_next_question_response_text
+        elif llm_next_question_response_text is not None:
+            llm_text = llm_next_question_response_text
+        elif step_number < MAX_CONVERSATION_STEP_NUMBER: 
+            # Default to the next question if we're not getting usable text from the model at all
+            llm_text = CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+        else:
+            # Otherwise, we have model errors and we're at the end of the conversation, and
+            # the text doesn't matter anyways since it won't be displayed, so we default to empty string.
+            llm_text = ""
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+        return create_flask_response_with_cors_headers(response=create_error_response("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
     
-    llm_result = json.loads(llm_response['Body'].read().decode('utf-8'))
-    if llm_result is None:
-        print("llm model error - no response")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    llm_text = llm_result[0].get("generated_text")
-    if not llm_text:
-        print(f"llm model error - unexpected response format: {llm_result=}")
-        return create_flask_response_with_cors_headers(response=createErrorResponse("llm model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # TODO remove the below line after testing
-    return create_flask_response_with_cors_headers(response=llm_text, status=status.HTTP_200_OK)
-
-    # return flask.Response(response=createGetTextResponse(
-    #     conversation_id,
-    #     step_number, 
-    #     attempt_number, 
-    #     on_topic,
-    #     llm_text), status=status.HTTP_200_OK, mimetype='application/json')
+    return flask.Response(response=create_get_text_response(
+        conversation_id=1,
+        step_number=step_number, 
+        attempt_number=attempt_number, 
+        on_topic=True,
+        llm_text=llm_text
+    ), status=status.HTTP_200_OK, mimetype='application/json')
   
-def text_is_on_topic(question_embedding, user_answer_embedding):
+# TODO put these functions into helper files for sorting
+def user_input_is_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cosine similarity between question and answer
     similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
     print("similarity score: " + str(similarity_score))
@@ -201,40 +219,55 @@ def create_flask_response_with_cors_headers(response, status):
     response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
     return response
     
-def createErrorResponse(text):
+def create_error_response(text):
     return json.dumps({'error': text})
 
-def createLLMInput(text, annotated_text):
-    # TODO modify to use inputs and update paramters
-    prompt = "You are a Spanish language teacher, and the user made mistakes. You respond with 'ahh, you mean,...' and repeat what the user said in the correct format. Don't further explain, and keep your response in one short sentence."
-    user_input = "\n\nUser:'Bien, gracias. ¿Y a tú?'"
-    prompt = prompt + user_input
+def parse_llm_response(response):
+    response_body = json.loads(response['Body'].read().decode('utf-8'))
+    generated_text = response_body[0]["generated_text"]
+    print("response from llm: " + generated_text)
+    response = re.search(LLM_RESPONSE_REGEX, generated_text)
+    return response.group(1)
+
+def create_gec_scaffolding_prompt(gec_input):
+    return f"Response with 'Veo. quieres decir " + gec_input + "' and nothing else:"
+
+def create_llm_reword_next_question_prompt(conversation_id, step_number):
+    return f"rephrase '{CONVERSATION_SCRIPTS[conversation_id][step_number]}' in Spanish and nothing else:"
+
+def create_llm_gec_prompt(user_input):
+    return f"'{user_input}' has grammatical error. Return the correction and nothing else:"
+
+def create_llm_input(user_content):
     payload = {
-        "inputs": prompt,
+        "inputs": [[
+            {"role": "system", "content": "You are a Spanish teacher. Be nice."},
+            {"role": "user", "content": user_content},
+        ]],
         "parameters": {
-            "do_sample":True, 
-            "temperature":0.01, 
-            "top_k":50, 
-            "top_p":0.95
+            "max_new_tokens": 64,
+            "top_k": 50,
+            "top_p": 0.95,
+            "do_sample": True,
+            "temperature": 0.001,
+            "stop": ["<|endoftext|>", "</s>"]
         }
     }
     return json.dumps(payload)
 
-def createGECInput(text):
+def create_gec_input(text):
     return json.dumps({'text': text})
 
-def createContentClassificationInput(text):
+def create_cc_input(text):
     return json.dumps({'inputs': text})
 
-def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic, llm_text=None):
+def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None):
     print("creating response body")
     next_step, text = None, None
         
     if on_topic == False:
-        if attempt_number < MAX_ANSWER_ATTEMPTS:
+        if attempt_number <= MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
-            # TODO proper string concatenation
-            # TODO should this error text be in Spanish?
             # TODO initial how-to can also tell user what phrases we will be using for correction like below
             text = OFF_TOPIC_TEXT_RESPONSE + " " + TRY_AGAIN_RESPONSE
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
@@ -245,11 +278,10 @@ def createGetTextResponse(conversation_id, step_number, attempt_number, on_topic
             text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
     else:
+        text = llm_text
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
-            text = llm_text
             next_step = NextStep.END_CONVERSATION
         else:
-            text = llm_text + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
     response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
