@@ -75,7 +75,7 @@ def get_text():
         return create_flask_response_with_cors_headers(response=create_error_response("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
     
     attempt_number = request_body.get("attemptNumber")
-    if not attempt_number or not 1 < attempt_number <= MAX_ANSWER_ATTEMPTS:
+    if not attempt_number or not 1 <= attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
         return create_flask_response_with_cors_headers(response=create_error_response("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
     
@@ -239,11 +239,12 @@ def create_llm_gec_prompt(user_input):
     return f"'{user_input}' has grammatical error. Return the correction and nothing else:"
 
 def create_llm_input(user_content):
-    payload = {
-        "inputs": [[
+    inputs = [[
             {"role": "system", "content": "You are a Spanish teacher. Be nice."},
             {"role": "user", "content": user_content},
-        ]],
+        ]]
+    payload = {
+        "inputs": f"{inputs}",
         "parameters": {
             "max_new_tokens": 64,
             "top_k": 50,
