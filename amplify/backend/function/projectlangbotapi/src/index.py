@@ -11,8 +11,7 @@ CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
 LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
-OFF_TOPIC_TEXT_RESPONSE = "Lo siento, ese no era el tema." # "Sorry, that wasn't on topic."
-TRY_AGAIN_RESPONSE = "Inténtalo de nuevo." # "Please try again."
+OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
 CC_CUTOFF_THRESHOLD = 0.75
@@ -121,40 +120,27 @@ def get_text():
             status=status.HTTP_200_OK)
     
     # Pass in input to GEC model to get text annotated with grammatical errors
-    # try:
-    #     gec_response = runtime.invoke_endpoint(
-    #         EndpointName=GEC_ENDPOINT_NAME,
-    #         ContentType='application/json',
-    #         Body=createGECInput(text))
-    # except Exception as err:
-    #     print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
-    #     return flask.Response(response=createErrorResponse("exception calling sagemaker - gec"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-        
-    # # TODO remove the below line after testing
-    # return flask.Response(response=gec_response, status=status.HTTP_200_OK, mimetype='application/json')
-
-    # gec_result = json.loads(gec_response['Body'].read().decode())
-    # if gec_result is None:
-    #     print("gec model error - no response")
-    #     return flask.Response(response=createErrorResponse("gec model error"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-    # annotated_text = gec_result.get("annotated_text") 
-    # if not annotated_text:
-    #     print(f"gec model error - unexpected response format: {gec_result=}")
-    #     return flask.Response(response=createErrorResponse("empty request body"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-    
-    # # Pass in input to LLM with output from GEC model and original text to get a response
-    # try:
-    #     llm_response = runtime.invoke_endpoint(
-    #         EndpointName=LLM_ENDPOINT_NAME,
-    #         ContentType='application/json',
-    #         Body=createLLMInput(text, annotated_text))
-    # except Exception as err:
-    #     print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
-    #     return flask.Response(response=createErrorResponse("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json') 
-    
     try:
-        llm_gec_response_text, llm_gec_scaffolding_response_text, llm_next_question_response_text = None, None, None
+        input = create_gec_input(text)
+        print("calling gec endpoint with the following input: " + input)
+        gec_response = runtime.invoke_endpoint(
+            EndpointName=GEC_ENDPOINT_NAME,
+            ContentType='application/json',
+            Body=input)
+        gec_result = json.loads(gec_response['Body'].read().decode())
+        print("response from gec: " + gec_result)
+    except Exception as err:
+        print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
+        return flask.Response(
+            response=create_error_response("exception calling sagemaker - gec"), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            mimetype='application/json')
+
+    try:
+        llm_gec_response_text, llm_gec_scaffolding_response_text = None, None
         
+        # TODO update this to use the GEC input instead
+        # TODO update to use Mon's new regex
         input = create_llm_input(create_llm_gec_prompt(text))
         print("calling llm endpoint with the following gec input: " + input)
         llm_gec_response = runtime.invoke_endpoint(
@@ -174,27 +160,8 @@ def get_text():
                 Body=input)
             llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
             
-        if step_number != MAX_CONVERSATION_STEP_NUMBER:
-            input = create_llm_input(
-                create_llm_reword_next_question_prompt(
-                    conversation_id=conversation_id, 
-                    step_number=step_number + 1
-                )
-            )
-            print("calling llm endpoint with the following reword next question input: " + input)
-            llm_next_question_response = runtime.invoke_endpoint(
-                EndpointName=LLM_ENDPOINT_NAME,
-                ContentType='application/json',
-                Body=input)
-            llm_next_question_response_text = parse_llm_response(llm_next_question_response)
-            
-        if llm_gec_scaffolding_response_text is not None and llm_next_question_response_text is not None:
-            llm_text = llm_gec_scaffolding_response_text + " " + llm_next_question_response_text
-        elif llm_next_question_response_text is not None:
-            llm_text = llm_next_question_response_text
-        elif step_number < MAX_CONVERSATION_STEP_NUMBER: 
-            # Default to the next question if we're not getting usable text from the model at all
-            llm_text = CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+        if llm_gec_scaffolding_response_text is not None:
+            llm_text = llm_gec_scaffolding_response_text
         else:
             # Otherwise, we have model errors and we're at the end of the conversation.
             # The text won't be displayed anyways so we default to empty string.
@@ -240,10 +207,7 @@ def parse_llm_response(response):
     return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
-    return f"Response with 'Veo. quieres decir " + gec_input + "' and nothing else:"
-
-def create_llm_reword_next_question_prompt(conversation_id, step_number):
-    return f"rephrase '{CONVERSATION_SCRIPTS[conversation_id][step_number]}' in Spanish and nothing else:"
+    return f"Response with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
 
 def create_llm_gec_prompt(user_input):
     return f"'{user_input}' has grammatical error. Return the correction and nothing else:"
@@ -279,20 +243,22 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
     if on_topic == False:
         if attempt_number <= MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
-            # TODO initial how-to can also tell user what phrases we will be using for correction like below
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + TRY_AGAIN_RESPONSE
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number]
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = OFF_TOPIC_TEXT_RESPONSE
             next_step = NextStep.END_CONVERSATION
         else:
+            # TODO instead of hard-coding just one question, get a "random" rewording of that question
             text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
     else:
-        text = llm_text
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
+            text = llm_text
             next_step = NextStep.END_CONVERSATION
         else:
+            # TODO instead of hard-coding just one question, get a "random" rewording of that question
+            text = llm_text + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
     response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
