@@ -231,7 +231,7 @@ def create_llm_input(user_content):
     return json.dumps(payload)
 
 def create_gec_input(text):
-    return json.dumps({'text': text})
+    return json.dumps({'line': text})
 
 def create_cc_input(text):
     return json.dumps({'inputs': text})
