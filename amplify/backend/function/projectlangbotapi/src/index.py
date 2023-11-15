@@ -128,7 +128,7 @@ def get_text():
             ContentType='application/json',
             Body=input)
         gec_result = json.loads(gec_response['Body'].read().decode())
-        print("response from gec: " + gec_result)
+        print("response from gec: " + str(gec_result))
     except Exception as err:
         print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
         return flask.Response(
