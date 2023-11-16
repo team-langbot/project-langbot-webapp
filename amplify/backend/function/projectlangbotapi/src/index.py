@@ -6,12 +6,12 @@ import awsgi, boto3, json
 from enum import Enum
 from scipy.spatial import distance
 import re
+import random
 
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
 LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]|\'assistant\': [\'\"](.+)[\'\"]|\'outputs\': [\'\"](.+)[\'\"]|\\n\\nAssistant: (.+)"
-#LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
@@ -23,6 +23,15 @@ CONVERSATION_SCRIPTS = {
         3: '¿Quieres ir de compras conmigo?',
         4: '¿A qué hora te gustaría ir?',
         5: 'Vale, nos vemos luego.'
+    }
+}
+ALTERNATIVE_CONVERSATION_WORDINGS = {
+    1: {
+        1: ['¿Hola, cómo va?'],
+        2: ['¿Quieres pasar el rato hoy?'],
+        3: ['¿Quieres ir a la tienda conmigo?'],
+        4: ['¿A qué hora te gustaría encontrarnos?'],
+        5: ['Bueno, hasta luego.']
     }
 }
 
@@ -141,7 +150,6 @@ def get_text():
         llm_gec_response_text, llm_gec_scaffolding_response_text = None, None
         
         # TODO update this to use the GEC input instead
-        # TODO update to use Mon's new regex
         input = create_llm_input(create_llm_gec_prompt(text))
         print("calling llm endpoint with the following gec input: " + input)
         llm_gec_response = runtime.invoke_endpoint(
@@ -209,7 +217,6 @@ def parse_llm_response(response):
     response = response[1] if response[1] else response[2] if response[2] else response[3] if response[3] else response[4]
     print("parsed response from llm: " + response)
     return response
-    #return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Response with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
@@ -248,30 +255,35 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
     if on_topic == False:
         if attempt_number <= MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number]
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = OFF_TOPIC_TEXT_RESPONSE
             next_step = NextStep.END_CONVERSATION
         else:
-            # TODO instead of hard-coding just one question, get a "random" rewording of that question
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = llm_text
             next_step = NextStep.END_CONVERSATION
         else:
-            # TODO instead of hard-coding just one question, get a "random" rewording of that question
             if llm_text != "":
-                text = llm_text + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+                text = llm_text + " " + get_next_question(conversation_id, step_number + 1)
             else:
-                text = CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+                text = get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
     response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
     print("response body: " + response_body)
     return response_body
+
+def get_next_question(conversation_id, step_number):
+    roll = random.randint(0, 1)
+    if roll == 0:
+        return ALTERNATIVE_CONVERSATION_WORDINGS[conversation_id][step_number][0]
+    else:
+        return CONVERSATION_SCRIPTS[conversation_id][step_number]
     
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
