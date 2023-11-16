@@ -153,7 +153,6 @@ def get_text():
         if llm_gec_response_text is None:
             print("llm gec response could not be parsed, skipping scaffolding") 
         else:
-            print("parsed llm gec response: " + llm_gec_response_text)
             input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
             print("calling llm endpoint with the following gec scaffolding input: " + input)
             llm_gec_scaffolding_response = runtime.invoke_endpoint(
@@ -163,7 +162,6 @@ def get_text():
             llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
             
         if llm_gec_scaffolding_response_text is not None:
-            print("parsed llm scaffolding response: " + llm_gec_scaffolding_response_text)
             llm_text = llm_gec_scaffolding_response_text
         else:
             # Otherwise, we have model errors and we're at the end of the conversation.
@@ -208,8 +206,10 @@ def parse_llm_response(response):
     if response is None:
         print("could not parse llm response")
         return response
-    return response[1] if response[1] else response[2] if response[2] else response[3]
-    # return response.group(1) if response is not None else response
+    response = response[1] if response[1] else response[2] if response[2] else response[3] if response[3] else response[4]
+    print("parsed response from llm: " + response)
+    return response
+    #return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Response with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
@@ -263,7 +263,10 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
             next_step = NextStep.END_CONVERSATION
         else:
             # TODO instead of hard-coding just one question, get a "random" rewording of that question
-            text = llm_text + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+            if llm_text != "":
+                text = llm_text + " " + CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
+            else:
+                text = CONVERSATION_SCRIPTS[conversation_id][step_number + 1]
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
     response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
