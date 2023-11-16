@@ -10,7 +10,8 @@ import re
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
-LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
+LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]|\'assistant\': [\'\"](.+)[\'\"]|\'outputs\': [\'\"](.+)[\'\"]"
+#LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
@@ -204,7 +205,9 @@ def parse_llm_response(response):
     response = re.search(LLM_RESPONSE_REGEX, generated_text)
     if response is None:
         print("could not parse llm response")
-    return response.group(1) if response is not None else response
+        return response
+    return response[1] if response[1] else response[2] if response[2] else response[3]
+    # return response.group(1) if response is not None else response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Response with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
