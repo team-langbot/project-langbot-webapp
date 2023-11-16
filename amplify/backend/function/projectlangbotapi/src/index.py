@@ -10,7 +10,7 @@ import re
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
-LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]|\'assistant\': [\'\"](.+)[\'\"]|\'outputs\': [\'\"](.+)[\'\"]"
+LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]|\'assistant\': [\'\"](.+)[\'\"]|\'outputs\': [\'\"](.+)[\'\"]|\\n\\nAssistant: (.+)"
 #LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
