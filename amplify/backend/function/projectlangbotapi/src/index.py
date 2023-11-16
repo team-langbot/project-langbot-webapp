@@ -151,8 +151,9 @@ def get_text():
         llm_gec_response_text = parse_llm_response(llm_gec_response)
         
         if llm_gec_response_text is None:
-            print("llm response could not be parsed, skipping scaffolding") 
+            print("llm gec response could not be parsed, skipping scaffolding") 
         else:
+            print("parsed llm gec response: " + llm_gec_response_text)
             input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
             print("calling llm endpoint with the following gec scaffolding input: " + input)
             llm_gec_scaffolding_response = runtime.invoke_endpoint(
@@ -162,6 +163,7 @@ def get_text():
             llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
             
         if llm_gec_scaffolding_response_text is not None:
+            print("parsed llm scaffolding response: " + llm_gec_scaffolding_response_text)
             llm_text = llm_gec_scaffolding_response_text
         else:
             # Otherwise, we have model errors and we're at the end of the conversation.
