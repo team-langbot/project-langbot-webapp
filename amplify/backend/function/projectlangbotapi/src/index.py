@@ -252,7 +252,7 @@ def create_gec_correction_dictionary(gec_result):
     # Example GEC input: {'output': [[{"Estoy": "O"},{"bienes,": "B-na"},{"gracias.": "O"}]]}
     gec_corrections = gec_result['output'][0]
     for correction_pair in gec_corrections:
-        for word, correction in correction_pair:
+        for word, correction in correction_pair.items():
             if correction != "O" and correction in corrections: # O = No error
                 found_error = True
                 corrections[correction].append(word)
@@ -283,6 +283,7 @@ def create_llm_input(text, gec_result):
         ### Respond":"""
     else:
         # TODO If no error, need to decide what to do. For now we can just skip.
+        print("no gec errors found")
         return
     
     payload = {
