@@ -291,7 +291,7 @@ def create_gec_correction_dictionary(gec_result):
 def create_llm_gec_scaffolding_input(text, corrections_dict):
     corrections_prompt = ""
     
-    for correction, word_list in corrections_dict:
+    for correction, word_list in corrections_dict.items():
         for word in word_list:
             if len(corrections_prompt) > 0:
                 corrections_prompt += ", "
