@@ -250,6 +250,9 @@ def create_gec_correction_dictionary(gec_result):
     found_error = False
     
     # Example GEC input: {'output': [[{"Estoy": "O"},{"bienes,": "B-na"},{"gracias.": "O"}]]}
+    print("gec result" + str(type(gec_result)))
+    print("gec result output" + str(gec_result['output']))
+    print("gec result output 0" + str(gec_result['output'][0]))
     gec_corrections = gec_result['output'][0]
     for correction_pair in gec_corrections:
         for word, correction in correction_pair.items():
