@@ -117,7 +117,7 @@ def get_text():
         print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
         return flask.Response(response=create_error_response("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
     
-    on_topic = user_input_is_on_topic(cc_question_embedding, cc_user_answer_embedding)
+    on_topic = is_user_input_on_topic(cc_question_embedding, cc_user_answer_embedding)
     if not on_topic:
         print("off topic")
         return create_flask_response_with_cors_headers(
@@ -146,31 +146,50 @@ def get_text():
             status=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             mimetype='application/json')
 
+    # Pass in input to LLM model to create chatbot response
     try:
-        llm_gec_response_text, llm_gec_scaffolding_response_text = None, None
+        # TODO remove this after confirming we don't need
+        # llm_gec_response_text, llm_gec_scaffolding_response_text = None, None
+        # input = create_llm_input(create_llm_gec_prompt(text))
+        # print("calling llm endpoint with the following gec input: " + input)
+        # llm_gec_response = runtime.invoke_endpoint(
+        #     EndpointName=LLM_ENDPOINT_NAME,
+        #     ContentType='application/json',
+        #     Body=input)
+        # llm_gec_response_text = parse_llm_response(llm_gec_response)
         
-        # TODO update this to use the GEC input instead
-        input = create_llm_input(create_llm_gec_prompt(text))
-        print("calling llm endpoint with the following gec input: " + input)
-        llm_gec_response = runtime.invoke_endpoint(
+        # if llm_gec_response_text is None:
+        #     print("llm gec response could not be parsed, skipping scaffolding") 
+        # else:
+        #     input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
+        #     print("calling llm endpoint with the following gec scaffolding input: " + input)
+        #     llm_gec_scaffolding_response = runtime.invoke_endpoint(
+        #         EndpointName=LLM_ENDPOINT_NAME,
+        #         ContentType='application/json',
+        #         Body=input)
+        #     llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
+        # if llm_gec_scaffolding_response_text is not None:
+        #     llm_text = llm_gec_scaffolding_response_text
+        # else:
+        #     # Otherwise, we have model errors and we're at the end of the conversation.
+        #     # The text won't be displayed anyways so we default to empty string.
+        #     llm_text = ""
+        
+        # TODO add the other call to LLM once you're done testing this
+        # Parse the GEC response to see if there are errors
+        # If there are errors, we need to add them to this input:
+        # If there are no errors, then 
+        llm_response_text = None
+        input = create_llm_input(text, gec_result)
+        print("calling llm endpoint with the following input: " + input)
+        llm_response = runtime.invoke_endpoint(
             EndpointName=LLM_ENDPOINT_NAME,
             ContentType='application/json',
             Body=input)
-        llm_gec_response_text = parse_llm_response(llm_gec_response)
+        llm_response_text = parse_llm_response(llm_response)
         
-        if llm_gec_response_text is None:
-            print("llm gec response could not be parsed, skipping scaffolding") 
-        else:
-            input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
-            print("calling llm endpoint with the following gec scaffolding input: " + input)
-            llm_gec_scaffolding_response = runtime.invoke_endpoint(
-                EndpointName=LLM_ENDPOINT_NAME,
-                ContentType='application/json',
-                Body=input)
-            llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
-            
-        if llm_gec_scaffolding_response_text is not None:
-            llm_text = llm_gec_scaffolding_response_text
+        if llm_response_text is not None:
+            llm_text = llm_response_text
         else:
             # Otherwise, we have model errors and we're at the end of the conversation.
             # The text won't be displayed anyways so we default to empty string.
@@ -188,7 +207,7 @@ def get_text():
     ), status=status.HTTP_200_OK, mimetype='application/json')
   
 # TODO put these functions into helper files for sorting
-def user_input_is_on_topic(question_embedding, user_answer_embedding):
+def is_user_input_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cosine similarity between question and answer
     similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
     print("similarity score: " + str(similarity_score))
@@ -219,16 +238,53 @@ def parse_llm_response(response):
     return response
 
 def create_gec_scaffolding_prompt(gec_input):
-    return f"Response with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
+    return f"Respond with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
 
-def create_llm_gec_prompt(user_input):
-    return f"'{user_input}' has grammatical error. Return the correction and nothing else:"
-
-def create_llm_input(user_content):
-    inputs = [[
-            {"role": "system", "content": "You are a Spanish teacher. Be nice."},
-            {"role": "user", "content": user_content},
-        ]]
+def create_gec_correction_dictionary(gec_result):
+    corrections = {
+        "B-na": [], # B-na = Beginning number disagreement
+        "B-ga": [], # B-ga = Beginning gender disagreement
+        "I-na": [], # I-na = Inner number disagreement
+        "I-ga": []  # I-ga = Inner gender disagreement
+    }
+    found_error = False
+    
+    # Example GEC input: {'output': [[{"Estoy": "O"},{"bienes,": "B-na"},{"gracias.": "O"}]]}
+    gec_corrections = gec_result['output'][0]
+    for correction_pair in gec_corrections:
+        for word, correction in correction_pair:
+            if correction != "O" and correction in corrections: # O = No error
+                found_error = True
+                corrections[correction].append(word)
+    
+    print(str(corrections))
+    return (corrections, found_error)
+    
+def create_llm_input(text, gec_result):
+    corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
+    
+    # TODO move this as constant at top
+    gec_response_mapping = {
+        "B-na": "beginning number disagreement",
+        "B-ga": "beginning gender disagreement",
+        "I-na": "inner number disagreement",
+        "I-ga": "inner gender disagreement"
+    }
+    if found_error:
+        corrections_prompt = ""
+        
+        for correction, word_list in corrections_dict:
+            for word in word_list:
+                corrections_prompt += f"{word} has a {gec_response_mapping[correction]} error; "
+                            
+        inputs = f"""You are a Spanish teacher. You respond in Spanish.
+        
+        ### Input:\nIn '{text}', {corrections_prompt}. Return the correction and nothing else:
+        ### Respond":"""
+    else:
+        # TODO If no error, need to decide what to do. For now we can just skip.
+        return
+    
     payload = {
         "inputs": f"{inputs}",
         "parameters": {
