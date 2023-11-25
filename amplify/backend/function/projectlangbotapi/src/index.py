@@ -5,6 +5,7 @@ import flask
 import awsgi, boto3, json
 from enum import Enum
 from scipy.spatial import distance
+from pysbd import Segmenter
 import re
 import random
 
@@ -33,6 +34,12 @@ ALTERNATIVE_CONVERSATION_WORDINGS = {
         4: ['¿A qué hora te gustaría encontrarnos?'],
         5: ['Bueno, hasta luego.']
     }
+}
+GEC_RESPONSE_TRANSLATION = {
+    "B-na": "beginning number disagreement",
+    "B-ga": "beginning gender disagreement",
+    "I-na": "inner number disagreement",
+    "I-ga": "inner gender disagreement"
 }
 
 class NextStep(Enum):
@@ -180,13 +187,27 @@ def get_text():
         # If there are errors, we need to add them to this input:
         # If there are no errors, then 
         llm_response_text = None
-        input = create_llm_input(text, gec_result)
-        print("calling llm endpoint with the following input: " + input)
-        llm_response = runtime.invoke_endpoint(
-            EndpointName=LLM_ENDPOINT_NAME,
-            ContentType='application/json',
-            Body=input)
-        llm_response_text = parse_llm_response(llm_response)
+        corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
+
+        # TODO remove below line when new GEC model is deployed, this is just for testing
+        corrections_dict = {
+            "B-na": ['bienes'], # B-na = Beginning number disagreement
+            "B-ga": [], # B-ga = Beginning gender disagreement
+            "I-na": [], # I-na = Inner number disagreement
+            "I-ga": []  # I-ga = Inner gender disagreement
+        }
+        found_error = True
+
+        if found_error:
+            input = create_llm_input(create_llm_gec_scaffolding_input(text, corrections_dict))
+            print("calling llm endpoint with the following input: " + input)
+            llm_response = runtime.invoke_endpoint(
+                EndpointName=LLM_ENDPOINT_NAME,
+                ContentType='application/json',
+                Body=input)
+            llm_response_text = parse_llm_response(llm_response)
+        else:
+            print("no gec errors found")
         
         if llm_response_text is not None:
             llm_text = llm_response_text
@@ -226,21 +247,27 @@ def create_error_response(text):
     return json.dumps({'error': text})
 
 def parse_llm_response(response):
+    # TODO update from notebook
     response_body = json.loads(response['Body'].read().decode('utf-8'))
     generated_text = response_body[0]["generated_text"]
     print("response from llm: " + repr(generated_text))
-    response = re.search(LLM_RESPONSE_REGEX, generated_text)
-    if response is None:
-        print("could not parse llm response")
-        return response
-    response = response[1] if response[1] else response[2] if response[2] else response[3] if response[3] else response[4]
-    print("parsed response from llm: " + response)
+    segmenter = Segmenter(language='es', clean=False)
+    sents = segmenter.segment(generated_text)
+    response = sents[0].strip() + ' ' + sents[1].strip() if sents[0].strip() == 'Veo.' else sents[0].strip()
     return response
+    # response = re.search(LLM_RESPONSE_REGEX, generated_text)
+    # if response is None:
+    #     print("could not parse llm response")
+    #     return response
+    # response = response[1] if response[1] else response[2] if response[2] else response[3] if response[3] else response[4]
+    # print("parsed response from llm: " + response)
+    # return response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Respond with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
 
 def create_gec_correction_dictionary(gec_result):
+    # TODO update if there are additional corrections
     corrections = {
         "B-na": [], # B-na = Beginning number disagreement
         "B-ga": [], # B-ga = Beginning gender disagreement
@@ -250,9 +277,6 @@ def create_gec_correction_dictionary(gec_result):
     found_error = False
     
     # Example GEC input: {'output': [[{"Estoy": "O"},{"bienes,": "B-na"},{"gracias.": "O"}]]}
-    print("gec result" + str(type(gec_result)))
-    print("gec result output" + str(gec_result['output']))
-    print("gec result output 0" + str(gec_result['output'][0]))
     gec_corrections = gec_result['output'][0]
     for correction_pair in gec_corrections:
         for word, correction in correction_pair.items():
@@ -262,33 +286,22 @@ def create_gec_correction_dictionary(gec_result):
     
     print(str(corrections))
     return (corrections, found_error)
+
+def create_llm_gec_scaffolding_input(text, corrections_dict):
+    corrections_prompt = ""
     
-def create_llm_input(text, gec_result):
-    corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
+    for correction, word_list in corrections_dict:
+        for word in word_list:
+            if len(corrections_prompt) > 0:
+                corrections_prompt += ", "
+            corrections_prompt += f"{word} has a {GEC_RESPONSE_TRANSLATION[correction]} error"
+                        
+    return f"""You are a Spanish teacher. You respond in Spanish.
     
-    # TODO move this as constant at top
-    gec_response_mapping = {
-        "B-na": "beginning number disagreement",
-        "B-ga": "beginning gender disagreement",
-        "I-na": "inner number disagreement",
-        "I-ga": "inner gender disagreement"
-    }
-    if found_error:
-        corrections_prompt = ""
-        
-        for correction, word_list in corrections_dict:
-            for word in word_list:
-                corrections_prompt += f"{word} has a {gec_response_mapping[correction]} error; "
-                            
-        inputs = f"""You are a Spanish teacher. You respond in Spanish.
-        
-        ### Input:\nIn '{text}', {corrections_prompt}. Return the correction and nothing else:
-        ### Respond":"""
-    else:
-        # TODO If no error, need to decide what to do. For now we can just skip.
-        print("no gec errors found")
-        return
+    ### Input:\nIn '{text}', {corrections_prompt}. Return the correction and nothing else:
+    ### Respond":"""
     
+def create_llm_input(inputs):
     payload = {
         "inputs": f"{inputs}",
         "parameters": {
