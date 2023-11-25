@@ -199,6 +199,7 @@ def get_text():
         found_error = True
 
         if found_error:
+            print("found GEC errors")
             input = create_llm_input(create_llm_gec_scaffolding_input(text, corrections_dict))
             print("calling llm endpoint with the following input: " + input)
             llm_response = runtime.invoke_endpoint(
@@ -207,7 +208,7 @@ def get_text():
                 Body=input)
             llm_response_text = parse_llm_response(llm_response)
         else:
-            print("no gec errors found")
+            print("no GEC errors found")
         
         if llm_response_text is not None:
             llm_text = llm_response_text
