@@ -155,37 +155,6 @@ def get_text():
 
     # Pass in input to LLM model to create chatbot response
     try:
-        # TODO remove this after confirming we don't need
-        # llm_gec_response_text, llm_gec_scaffolding_response_text = None, None
-        # input = create_llm_input(create_llm_gec_prompt(text))
-        # print("calling llm endpoint with the following gec input: " + input)
-        # llm_gec_response = runtime.invoke_endpoint(
-        #     EndpointName=LLM_ENDPOINT_NAME,
-        #     ContentType='application/json',
-        #     Body=input)
-        # llm_gec_response_text = parse_llm_response(llm_gec_response)
-        
-        # if llm_gec_response_text is None:
-        #     print("llm gec response could not be parsed, skipping scaffolding") 
-        # else:
-        #     input = create_llm_input(create_gec_scaffolding_prompt(llm_gec_response_text))
-        #     print("calling llm endpoint with the following gec scaffolding input: " + input)
-        #     llm_gec_scaffolding_response = runtime.invoke_endpoint(
-        #         EndpointName=LLM_ENDPOINT_NAME,
-        #         ContentType='application/json',
-        #         Body=input)
-        #     llm_gec_scaffolding_response_text = parse_llm_response(llm_gec_scaffolding_response)
-        # if llm_gec_scaffolding_response_text is not None:
-        #     llm_text = llm_gec_scaffolding_response_text
-        # else:
-        #     # Otherwise, we have model errors and we're at the end of the conversation.
-        #     # The text won't be displayed anyways so we default to empty string.
-        #     llm_text = ""
-        
-        # TODO add the other call to LLM once you're done testing this
-        # Parse the GEC response to see if there are errors
-        # If there are errors, we need to add them to this input:
-        # If there are no errors, then 
         llm_response_text = None
         corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
 
@@ -211,7 +180,7 @@ def get_text():
             print("no GEC errors found")
         
         if llm_response_text is not None:
-            llm_text = llm_response_text
+            llm_text = f"Veo, quieres decir '{llm_response_text}'."
         else:
             # Otherwise, we have model errors and we're at the end of the conversation.
             # The text won't be displayed anyways so we default to empty string.
@@ -248,7 +217,6 @@ def create_error_response(text):
     return json.dumps({'error': text})
 
 def parse_llm_response(response):
-    # TODO update from notebook
     response_body = json.loads(response['Body'].read().decode('utf-8'))
     generated_text = response_body[0]["generated_text"]
     print("response from llm: " + repr(generated_text))
@@ -256,13 +224,6 @@ def parse_llm_response(response):
     sents = segmenter.segment(generated_text)
     response = sents[0].strip() + ' ' + sents[1].strip() if sents[0].strip() == 'Veo.' else sents[0].strip()
     return response
-    # response = re.search(LLM_RESPONSE_REGEX, generated_text)
-    # if response is None:
-    #     print("could not parse llm response")
-    #     return response
-    # response = response[1] if response[1] else response[2] if response[2] else response[3] if response[3] else response[4]
-    # print("parsed response from llm: " + response)
-    # return response
 
 def create_gec_scaffolding_prompt(gec_input):
     return f"Respond with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
