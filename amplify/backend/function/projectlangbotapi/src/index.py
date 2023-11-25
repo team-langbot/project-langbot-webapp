@@ -6,13 +6,11 @@ import awsgi, boto3, json
 from enum import Enum
 from scipy.spatial import distance
 from pysbd import Segmenter
-import re
 import random
 
 CONTENT_CLASSIFICATION_ENDPOINT_NAME = "sm-cc-aws"
 GEC_ENDPOINT_NAME = "sm-gec-aws"
 LLM_ENDPOINT_NAME = "sm-llm-aws"
-LLM_RESPONSE_REGEX = "\'role\': \'assistant\', \'content\': [\'\"](.+)[\'\"]|\'assistant\': [\'\"](.+)[\'\"]|\'outputs\': [\'\"](.+)[\'\"]|\\n\\nAssistant: (.+)"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
@@ -158,7 +156,7 @@ def get_text():
         llm_response_text = None
         corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
 
-        # TODO remove below line when new GEC model is deployed, this is just for testing
+        # TODO remove below two variables when new GEC model is deployed, this is just for testing
         corrections_dict = {
             "B-na": ['bienes'], # B-na = Beginning number disagreement
             "B-ga": [], # B-ga = Beginning gender disagreement
@@ -225,11 +223,11 @@ def parse_llm_response(response):
     response = sents[0].strip() + ' ' + sents[1].strip() if sents[0].strip() == 'Veo.' else sents[0].strip()
     return response
 
+# TODO remove if you don't need this
 def create_gec_scaffolding_prompt(gec_input):
     return f"Respond with 'Veo. Quieres decir " + gec_input + "' and nothing else:"
 
 def create_gec_correction_dictionary(gec_result):
-    # TODO update if there are additional corrections
     corrections = {
         "B-na": [], # B-na = Beginning number disagreement
         "B-ga": [], # B-ga = Beginning gender disagreement
@@ -255,7 +253,7 @@ def create_llm_gec_scaffolding_input(text, corrections_dict):
     for correction, word_list in corrections_dict.items():
         for word in word_list:
             if len(corrections_prompt) > 0:
-                corrections_prompt += ", "
+                corrections_prompt += "; "
             corrections_prompt += f"{word} has a {GEC_RESPONSE_TRANSLATION[correction]} error"
                         
     return f"""You are a Spanish teacher. You respond in Spanish.
