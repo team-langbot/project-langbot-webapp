@@ -14,7 +14,7 @@ LLM_ENDPOINT_NAME = "sm-llm-aws"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 2
-CC_CUTOFF_THRESHOLD = 0.75
+CC_CUTOFF_THRESHOLD = 0.4
 CONVERSATION_SCRIPTS = {
     1: {
         1: 'Hola, ¿cómo estás?',
@@ -157,13 +157,13 @@ def get_text():
         corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
 
         # TODO remove below two variables when new GEC model is deployed, this is just for testing
-        corrections_dict = {
-            "B-na": ['bienes'], # B-na = Beginning number disagreement
-            "B-ga": [], # B-ga = Beginning gender disagreement
-            "I-na": [], # I-na = Inner number disagreement
-            "I-ga": []  # I-ga = Inner gender disagreement
-        }
-        found_error = True
+        # corrections_dict = {
+        #     "B-na": ['bienes'], # B-na = Beginning number disagreement
+        #     "B-ga": [], # B-ga = Beginning gender disagreement
+        #     "I-na": [], # I-na = Inner number disagreement
+        #     "I-ga": []  # I-ga = Inner gender disagreement
+        # }
+        # found_error = True
 
         if found_error:
             print("found GEC errors")
@@ -236,8 +236,8 @@ def create_gec_correction_dictionary(gec_result):
     }
     found_error = False
     
-    # Example GEC input: {'output': [[{"Estoy": "O"},{"bienes,": "B-na"},{"gracias.": "O"}]]}
-    gec_corrections = gec_result['output'][0]
+    # Example GEC input: { "result": [{"Tengo": "O"}, {"una": "O"}, {"chaquetas": "B-na"}], "model_response": "a string version of what model returns"}
+    gec_corrections = gec_result['result']
     for correction_pair in gec_corrections:
         for word, correction in correction_pair.items():
             if correction != "O" and correction in corrections: # O = No error
@@ -269,7 +269,7 @@ def create_llm_input(inputs):
             "top_k": 50,
             "top_p": 0.95,
             "do_sample": True,
-            "temperature": 0.001,
+            "temperature": 0.001, # Higher is more variance in answers
             "stop": ["<|endoftext|>", "</s>"]
         }
     }
