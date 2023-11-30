@@ -34,10 +34,8 @@ ALTERNATIVE_CONVERSATION_WORDINGS = {
     }
 }
 GEC_RESPONSE_TRANSLATION = {
-    "B-na": "beginning number disagreement",
-    "B-ga": "beginning gender disagreement",
-    "I-na": "inner number disagreement",
-    "I-ga": "inner gender disagreement"
+    "B-na": "number disagreement",
+    "B-ga": "gender disagreement"
 }
 
 class NextStep(Enum):
@@ -229,10 +227,8 @@ def create_gec_scaffolding_prompt(gec_input):
 
 def create_gec_correction_dictionary(gec_result):
     corrections = {
-        "B-na": [], # B-na = Beginning number disagreement
-        "B-ga": [], # B-ga = Beginning gender disagreement
-        "I-na": [], # I-na = Inner number disagreement
-        "I-ga": []  # I-ga = Inner gender disagreement
+        "B-na": [], # B-na = Number disagreement
+        "B-ga": [], # B-ga = Gender disagreement
     }
     found_error = False
     
