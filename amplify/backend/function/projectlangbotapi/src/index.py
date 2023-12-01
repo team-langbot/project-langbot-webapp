@@ -154,15 +154,6 @@ def get_text():
         llm_response_text = None
         corrections_dict, found_error = create_gec_correction_dictionary(gec_result)
 
-        # TODO remove below two variables when new GEC model is deployed, this is just for testing
-        # corrections_dict = {
-        #     "B-na": ['bienes'], # B-na = Beginning number disagreement
-        #     "B-ga": [], # B-ga = Beginning gender disagreement
-        #     "I-na": [], # I-na = Inner number disagreement
-        #     "I-ga": []  # I-ga = Inner gender disagreement
-        # }
-        # found_error = True
-
         if found_error:
             print("found GEC errors")
             input = create_llm_input(create_llm_gec_scaffolding_input(text, corrections_dict))
@@ -190,7 +181,8 @@ def get_text():
         step_number=step_number, 
         attempt_number=attempt_number, 
         on_topic=True,
-        llm_text=llm_text
+        llm_text=llm_text,
+        corrections_dict=corrections_dict
     ), status=status.HTTP_200_OK, mimetype='application/json')
   
 # TODO put these functions into helper files for sorting
@@ -277,7 +269,7 @@ def create_gec_input(text):
 def create_cc_input(text):
     return json.dumps({'inputs': text})
 
-def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None):
+def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None, corrections_dict=None):
     print("creating response body")
     next_step, text = None, None
         
@@ -303,7 +295,7 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
                 text = get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
-    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text}) 
+    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text, 'corrections_dict': corrections_dict}) 
     print("response body: " + response_body)
     return response_body
 
