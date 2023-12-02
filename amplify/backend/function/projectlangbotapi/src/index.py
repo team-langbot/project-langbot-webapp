@@ -275,16 +275,13 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
     next_step, text = None, None
         
     if on_topic == False:
-        if attempt_number <= MAX_ANSWER_ATTEMPTS:
+        if attempt_number < MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number + 1)
+            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number)
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
-        elif step_number == MAX_CONVERSATION_STEP_NUMBER:
+        elif attempt_number == MAX_ANSWER_ATTEMPTS:
             text = OFF_TOPIC_TEXT_RESPONSE
-            next_step = NextStep.END_CONVERSATION
-        else:
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number + 1)
-            next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
+            next_step = NextStep.END_CONVERSATION + " " + "[You have completed three attempts for this question. Adios.]" # TODO put some explanation here
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = llm_text
