@@ -14,8 +14,8 @@ LLM_ENDPOINT_NAME = "sm-llm-aws"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 3
-CC_CUTOFF_THRESHOLD = 0.38
-# CC_CUTOFF_THRESHOLD = 0.75
+# CC_CUTOFF_THRESHOLD = 0.38
+CC_CUTOFF_THRESHOLD = 0.75
 CONVERSATION_SCRIPTS = {
     1: {
         1: 'Hola, ¿cómo estás?',
@@ -280,7 +280,7 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
             text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number)
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif attempt_number == MAX_ANSWER_ATTEMPTS:
-            text = OFF_TOPIC_TEXT_RESPONSE + " [You have completed three attempts for this question. Adios.]" # TODO put some explanation here
+            text = OFF_TOPIC_TEXT_RESPONSE
             next_step = NextStep.END_CONVERSATION
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
