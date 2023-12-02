@@ -280,8 +280,8 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
             text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number)
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif attempt_number == MAX_ANSWER_ATTEMPTS:
-            text = OFF_TOPIC_TEXT_RESPONSE
-            next_step = NextStep.END_CONVERSATION + " " + "[You have completed three attempts for this question. Adios.]" # TODO put some explanation here
+            text = OFF_TOPIC_TEXT_RESPONSE + " [You have completed three attempts for this question. Adios.]" # TODO put some explanation here
+            next_step = NextStep.END_CONVERSATION
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
             text = llm_text
