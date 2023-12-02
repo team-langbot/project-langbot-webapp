@@ -182,7 +182,7 @@ def get_text():
         attempt_number=attempt_number, 
         on_topic=True,
         llm_text=llm_text,
-        corrections_dict=corrections_dict
+        gec_response=str(gec_result)
     ), status=status.HTTP_200_OK, mimetype='application/json')
   
 # TODO put these functions into helper files for sorting
@@ -269,7 +269,7 @@ def create_gec_input(text):
 def create_cc_input(text):
     return json.dumps({'inputs': text})
 
-def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None, corrections_dict=None):
+def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None, gec_response=None):
     print("creating response body")
     next_step, text = None, None
         
@@ -295,7 +295,7 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
                 text = get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
-    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text, 'corrections_dict': corrections_dict}) 
+    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text, 'gec_response': gec_response}) 
     print("response body: " + response_body)
     return response_body
 
