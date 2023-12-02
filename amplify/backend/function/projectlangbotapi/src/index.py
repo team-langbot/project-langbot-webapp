@@ -182,7 +182,7 @@ def get_text():
         attempt_number=attempt_number, 
         on_topic=True,
         llm_text=llm_text,
-        gec_response=str(gec_result)
+        gec_response=gec_result['model_response']
     ), status=status.HTTP_200_OK, mimetype='application/json')
   
 # TODO put these functions into helper files for sorting
