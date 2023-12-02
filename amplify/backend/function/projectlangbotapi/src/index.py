@@ -14,8 +14,8 @@ LLM_ENDPOINT_NAME = "sm-llm-aws"
 OFF_TOPIC_TEXT_RESPONSE = "Interesante."
 MAX_CONVERSATION_STEP_NUMBER = 5
 MAX_ANSWER_ATTEMPTS = 3
-#CC_CUTOFF_THRESHOLD = 0.38
-CC_CUTOFF_THRESHOLD = 0.75
+CC_CUTOFF_THRESHOLD = 0.38
+# CC_CUTOFF_THRESHOLD = 0.75
 CONVERSATION_SCRIPTS = {
     1: {
         1: 'Hola, ¿cómo estás?',
@@ -284,7 +284,7 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
             next_step = NextStep.END_CONVERSATION
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
-            text = llm_text
+            text = llm_text + " " + "Adios."
             next_step = NextStep.END_CONVERSATION
         else:
             if llm_text != "":
