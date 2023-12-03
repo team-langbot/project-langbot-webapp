@@ -272,28 +272,39 @@ def create_cc_input(text):
 
 def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None, gec_response=None):
     print("creating response body")
-    next_step, text = None, None
+    next_step, cue, next_question = None, None, None
         
     if on_topic == False:
         if attempt_number < MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
-            text = OFF_TOPIC_TEXT_RESPONSE + " " + get_next_question(conversation_id, step_number)
+            cue = OFF_TOPIC_TEXT_RESPONSE
+            next_question = get_next_question(conversation_id, step_number)
             next_step = NextStep.PROMPT_FOR_ANOTHER_ATTEMPT
         elif attempt_number == MAX_ANSWER_ATTEMPTS:
-            text = "Adios."
+            cue = "Adios."
             next_step = NextStep.END_CONVERSATION
     else:
         if step_number == MAX_CONVERSATION_STEP_NUMBER:
-            text = llm_text + " " + "Adios."
+            if llm_text != "":
+                cue = llm_text + " " + "Adios."
+            else:
+                cue = "Adios."
             next_step = NextStep.END_CONVERSATION
         else:
             if llm_text != "":
-                text = llm_text + " " + get_next_question(conversation_id, step_number + 1)
+                cue = llm_text
             else:
-                text = get_next_question(conversation_id, step_number + 1)
+                cue = None
+            next_question = get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
        
-    response_body = json.dumps({'onTopic': on_topic, 'nextStep': str(next_step), 'text': text, 'gec_response': gec_response}) 
+    response_body = json.dumps({
+        'onTopic': on_topic, 
+        'nextStep': str(next_step), 
+        'cue': cue,
+        'nextQuestion': next_question,
+        'gecResponse': gec_response
+        }) 
     print("response body: " + response_body)
     return response_body
 
