@@ -115,7 +115,7 @@ def get_text():
         cc_user_answer_response = runtime.invoke_endpoint(
             EndpointName=CONTENT_CLASSIFICATION_ENDPOINT_NAME,
             ContentType='application/json',
-            Body=create_cc_input(text))
+            Body=input)
         cc_user_answer_embedding = json.loads(cc_user_answer_response['Body'].read().decode())
     except Exception as err:
         print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
@@ -189,6 +189,11 @@ def get_text():
 # TODO put these functions into helper files for sorting
 def is_user_input_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cosine similarity between question and answer
+    print("user answer embedding 00: " + str(user_answer_embedding[0][0]))
+    print("user answer embedding 0: " + str(user_answer_embedding[0]))
+    print("question embedding 00: " + str(question_embedding[0][0]))
+    print("question embedding 0: " + str(question_embedding[0]))
+
     similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
     print("similarity score: " + str(similarity_score))
     return bool(similarity_score > CC_CUTOFF_THRESHOLD)
