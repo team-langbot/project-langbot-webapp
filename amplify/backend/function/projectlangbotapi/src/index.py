@@ -58,7 +58,7 @@ runtime = boto3.client('runtime.sagemaker')
 # 	// v2 can include language as a field, but for now we’ll just assume it’s Spanish
 # }
 
-# Response Body: 
+# Response Body:
 # {
 # 	“onTopic”: (bool) true/false, // Used to increment the attempt number on the front-end
 # 	“nextAction”: (int) 1, // Can be 1 - 3, 1 = move to next conversation pair, 2 = prompt for errors, 3 = end conversation
@@ -70,28 +70,28 @@ runtime = boto3.client('runtime.sagemaker')
 @app.route("/text", methods=['POST'])
 def get_text():
     print("inside get_text")
-    
+
     # Parse request json and validate required arguments
     request_body = request.get_json()
     if not request_body:
         print("empty request body")
         return create_flask_response_with_cors_headers(response=create_error_response("empty request body"), status=status.HTTP_400_BAD_REQUEST)
-    
+
     conversation_id = request_body.get("conversationId")
     if not conversation_id or conversation_id != 1: # Only supporting one conversation for now
         print("invalid conversation id")
         return create_flask_response_with_cors_headers(response=create_error_response("invalid conversation id"), status=status.HTTP_400_BAD_REQUEST)
-    
+
     step_number = request_body.get("stepNumber")
     if not step_number or step_number not in range(1, MAX_CONVERSATION_STEP_NUMBER + 1):
         print("invalid step number")
         return create_flask_response_with_cors_headers(response=create_error_response("invalid step number"), status=status.HTTP_400_BAD_REQUEST)
-    
+
     attempt_number = request_body.get("attemptNumber")
     if not attempt_number or not 1 <= attempt_number <= MAX_ANSWER_ATTEMPTS:
         print("invalid attempt number")
         return create_flask_response_with_cors_headers(response=create_error_response("invalid attempt number"), status=status.HTTP_400_BAD_REQUEST)
-    
+
     text = request_body.get("text")
     # TODO add text cleaning for SSNs, etc here. We should try to add something on front-end as well.
     if not text:
@@ -109,7 +109,7 @@ def get_text():
             ContentType='application/json',
             Body=input)
         cc_question_embedding = json.loads(cc_question_response['Body'].read().decode())
-        
+
         input = create_cc_input(text)
         print("calling cc endpoint with the following user answer input: " + input)
         cc_user_answer_response = runtime.invoke_endpoint(
@@ -120,19 +120,19 @@ def get_text():
     except Exception as err:
         print(f"unexpected error calling sagemaker - content classification model: {err=}, {type(err)=}")
         return flask.Response(response=create_error_response("exception calling sagemaker - content classification"), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='application/json')
-    
+
     on_topic = is_user_input_on_topic(cc_question_embedding, cc_user_answer_embedding)
     if not on_topic:
         print("off topic")
         return create_flask_response_with_cors_headers(
             response=create_get_text_response(
                 conversation_id=1,
-                step_number=step_number, 
-                attempt_number=attempt_number, 
+                step_number=step_number,
+                attempt_number=attempt_number,
                 on_topic=False
-            ), 
+            ),
             status=status.HTTP_200_OK)
-    
+
     # Pass in input to GEC model to get text annotated with grammatical errors
     try:
         input = create_gec_input(text)
@@ -146,8 +146,8 @@ def get_text():
     except Exception as err:
         print(f"unexpected error calling sagemaker - GEC: {err=}, {type(err)=}")
         return flask.Response(
-            response=create_error_response("exception calling sagemaker - gec"), 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            response=create_error_response("exception calling sagemaker - gec"),
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             mimetype='application/json')
 
     # Pass in input to LLM model to create chatbot response
@@ -166,7 +166,7 @@ def get_text():
             llm_response_text = parse_llm_response(llm_response)
         else:
             print("no GEC errors found")
-        
+
         if llm_response_text is not None:
             llm_text = f"Veo, quieres decir '{llm_response_text}'."
         else:
@@ -175,38 +175,33 @@ def get_text():
             llm_text = ""
     except Exception as err:
         print(f"unexpected error calling sagemaker - LLM: {err=}, {type(err)=}")
-        return create_flask_response_with_cors_headers(response=create_error_response("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
-    
+        return create_flask_response_with_cors_headers(response=create_error_response("exception calling sagemaker - LLM"), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     return flask.Response(response=create_get_text_response(
         conversation_id=conversation_id,
-        step_number=step_number, 
-        attempt_number=attempt_number, 
+        step_number=step_number,
+        attempt_number=attempt_number,
         on_topic=True,
         llm_text=llm_text,
         gec_response=gec_result['model_response']
     ), status=status.HTTP_200_OK, mimetype='application/json')
-  
+
 # TODO put these functions into helper files for sorting
 def is_user_input_on_topic(question_embedding, user_answer_embedding):
     # Calculating the cosine similarity between question and answer
-    print("user answer embedding 00: " + str(user_answer_embedding[0][0]))
-    print("user answer embedding 0: " + str(user_answer_embedding[0]))
-    print("question embedding 00: " + str(question_embedding[0][0]))
-    print("question embedding 0: " + str(question_embedding[0]))
-
-    similarity_score = 1 - distance.cosine(user_answer_embedding[0][0], question_embedding[0][0])    
+    similarity_score = 1 - distance.cosine(user_answer_embedding, question_embedding)
     print("similarity score: " + str(similarity_score))
     return bool(similarity_score > CC_CUTOFF_THRESHOLD)
 
 def create_flask_response_with_cors_headers(response, status):
-    response = flask.Response(response=response, 
-                              status=status, 
+    response = flask.Response(response=response,
+                              status=status,
                               mimetype='application/json')
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST"
     return response
-    
+
 def create_error_response(text):
     return json.dumps({'error': text})
 
@@ -229,7 +224,7 @@ def create_gec_correction_dictionary(gec_result):
         "B-ga": [], # B-ga = Gender disagreement
     }
     found_error = False
-    
+
     # Example GEC input: { "result": [{"Tengo": "O"}, {"una": "O"}, {"chaquetas": "B-na"}], "model_response": "a string version of what model returns"}
     gec_corrections = gec_result['result']
     for correction_pair in gec_corrections:
@@ -237,24 +232,24 @@ def create_gec_correction_dictionary(gec_result):
             if correction != "O" and correction in corrections: # O = No error
                 found_error = True
                 corrections[correction].append(word)
-    
+
     print(str(corrections))
     return (corrections, found_error)
 
 def create_llm_gec_scaffolding_input(text, corrections_dict):
     corrections_prompt = ""
-    
+
     for correction, word_list in corrections_dict.items():
         for word in word_list:
             if len(corrections_prompt) > 0:
                 corrections_prompt += "; "
             corrections_prompt += f"{word} has a {GEC_RESPONSE_TRANSLATION[correction]} error"
-                        
+
     return f"""You are a Spanish teacher. You respond in Spanish.
-    
+
     ### Input:\nIn '{text}', {corrections_prompt}. Return the correction and nothing else:
     ### Respond":"""
-    
+
 def create_llm_input(inputs):
     payload = {
         "inputs": f"{inputs}",
@@ -278,7 +273,7 @@ def create_cc_input(text):
 def create_get_text_response(conversation_id, step_number, attempt_number, on_topic, llm_text=None, gec_response=None):
     print("creating response body")
     next_step, cue, next_question = None, None, None
-        
+
     if on_topic == False:
         if attempt_number < MAX_ANSWER_ATTEMPTS:
             # Incorrect response with remaining attempts
@@ -302,14 +297,14 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
                 cue = None
             next_question = get_next_question(conversation_id, step_number + 1)
             next_step = NextStep.MOVE_TO_NEXT_CONVERSATION_PAIR
-       
+
     response_body = json.dumps({
-        'onTopic': on_topic, 
-        'nextStep': str(next_step), 
+        'onTopic': on_topic,
+        'nextStep': str(next_step),
         'cue': cue,
         'nextQuestion': next_question,
         'gecResponse': gec_response
-        }) 
+        })
     print("response body: " + response_body)
     return response_body
 
@@ -319,6 +314,6 @@ def get_next_question(conversation_id, step_number):
         return ALTERNATIVE_CONVERSATION_WORDINGS[conversation_id][step_number][0]
     else:
         return CONVERSATION_SCRIPTS[conversation_id][step_number]
-    
+
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
