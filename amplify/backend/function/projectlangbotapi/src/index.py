@@ -253,12 +253,20 @@ def create_llm_gec_scaffolding_input(text, corrections_dict):
 def create_llm_input(inputs):
     payload = {
         "inputs": f"{inputs}",
+        # "parameters": {
+        #     "max_new_tokens": 64,
+        #     "top_k": 50,
+        #     "top_p": 0.95,
+        #     "do_sample": True,
+        #     "temperature": 0.001, # Higher is more variance in answers
+        #     "stop": ["<|endoftext|>", "</s>"]
+        # }
         "parameters": {
             "max_new_tokens": 64,
-            "top_k": 50,
-            "top_p": 0.95,
+            "top_k": 1,
+            "top_p": 0.9,
             "do_sample": True,
-            "temperature": 0.001, # Higher is more variance in answers
+            "temperature": 0.7, # .0001, playing around with this value
             "stop": ["<|endoftext|>", "</s>"]
         }
     }
