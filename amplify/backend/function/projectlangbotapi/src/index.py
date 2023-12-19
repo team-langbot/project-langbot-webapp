@@ -243,11 +243,11 @@ def create_llm_gec_scaffolding_input(text, corrections_dict):
         for word in word_list:
             if len(corrections_prompt) > 0:
                 corrections_prompt += "; "
-            corrections_prompt += f"{word} has a {GEC_RESPONSE_TRANSLATION[correction]} error"
+            corrections_prompt += f"The word {word} in '{text}' has a {GEC_RESPONSE_TRANSLATION[correction].split(' ')[0]} mismatch error"
 
     return f"""You are a Spanish teacher. You respond in Spanish.
 
-    ### Input:\n{corrections_prompt} Return the correction and nothing else:
+    ### Input:\n{corrections_prompt}. Return the correction and nothing else:
     ### Respond":"""
 
 def create_llm_input(inputs):
