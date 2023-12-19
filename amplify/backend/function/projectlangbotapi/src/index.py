@@ -247,7 +247,7 @@ def create_llm_gec_scaffolding_input(text, corrections_dict):
 
     return f"""You are a Spanish teacher. You respond in Spanish.
 
-    ### Input:\nIn '{text}', {corrections_prompt}. Return the correction and nothing else:
+    ### Input:\n{corrections_prompt} Return the correction and nothing else:
     ### Respond":"""
 
 def create_llm_input(inputs):
