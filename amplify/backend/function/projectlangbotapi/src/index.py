@@ -317,11 +317,12 @@ def create_get_text_response(conversation_id, step_number, attempt_number, on_to
     return response_body
 
 def get_next_question(conversation_id, step_number):
-    roll = random.randint(0, 1)
-    if roll == 0:
-        return ALTERNATIVE_CONVERSATION_WORDINGS[conversation_id][step_number][0]
-    else:
-        return CONVERSATION_SCRIPTS[conversation_id][step_number]
+    # roll = random.randint(0, 1)
+    # if roll == 0:
+    #     return ALTERNATIVE_CONVERSATION_WORDINGS[conversation_id][step_number][0]
+    # else:
+    #     return CONVERSATION_SCRIPTS[conversation_id][step_number]
+    return CONVERSATION_SCRIPTS[conversation_id][step_number]
 
 def handler(event, context):
     return awsgi.response(app, event, context) # Allows us to use WSGI middleware with API Gateway
